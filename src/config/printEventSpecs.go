@@ -51,17 +51,7 @@ func writeEventSpecsToTSFile(file *os.File) error {
 	file.WriteString("\texpectedMinSize: number\n")
 	file.WriteString("};\n\n")
 
-	// Create a slice of the values from the map
-	specs := make([]internal.EventSpecification, 0, len(internal.ALL_EVENTS))
-	for _, spec := range internal.ALL_EVENTS {
-		specs = append(specs, *spec)
-	}
-
-	// Sort the slice by the ID field, lowest to highest
-	sort.Slice(specs, func(i, j int) bool {
-		return specs[i].ID < specs[j].ID
-	})
-
+	specs := getOrderedEventSpecs()
 	//Content
 	file.WriteString("export const EventSpecifications: EventSpecification[] = [\n")
 	for index, spec := range specs {
@@ -82,6 +72,41 @@ func writeEventSpecsToTSFile(file *os.File) error {
 	return nil
 }
 
+func writeEventSpecsToJSONFile(file *os.File) error {
+	file.WriteString("[\n")
+	specs := getOrderedEventSpecs()
+	for index, spec := range specs {
+		file.WriteString("{\n")
+		file.WriteString(fmt.Sprintf("\t\"id\": %d,\n", spec.ID))
+		file.WriteString(fmt.Sprintf("\t\"name\": \"%s\",\n", spec.Name))
+		file.WriteString(fmt.Sprintf("\t\"permissions\": %s,\n", formatJSONSendPermissions(spec.SendPermissions)))
+		file.WriteString(fmt.Sprintf("\t\"expectedMinSize\": %d\n", spec.ExpectedMinSize))
+		if index == len(specs)-1 {
+			file.WriteString("}\n")
+		} else {
+			file.WriteString("},\n")
+		}
+	}
+	file.WriteString("]\n")
+
+	return fmt.Errorf("not implemented")
+}
+
+func getOrderedEventSpecs() []internal.EventSpecification {
+	// Create a slice of the values from the map
+	specs := make([]internal.EventSpecification, 0, len(internal.ALL_EVENTS))
+	for _, spec := range internal.ALL_EVENTS {
+		specs = append(specs, *spec)
+	}
+
+	// Sort the slice by the ID field, lowest to highest
+	sort.Slice(specs, func(i, j int) bool {
+		return specs[i].ID < specs[j].ID
+	})
+
+	return specs
+}
+
 func formatTSSendPermissions(permissions map[internal.OriginType]bool) string {
 	var result = "{"
 	count := 0
@@ -97,8 +122,19 @@ func formatTSSendPermissions(permissions map[internal.OriginType]bool) string {
 	return result
 }
 
-func writeEventSpecsToJSONFile(file *os.File) error {
-	return fmt.Errorf("not implemented")
+func formatJSONSendPermissions(permissions map[internal.OriginType]bool) string {
+	var result = "{"
+	count := 0
+	total := len(permissions)
+	for key, value := range permissions {
+		result += fmt.Sprintf("\"%s\": %t", key, value)
+		count++
+		if count < total {
+			result += ", "
+		}
+	}
+	result += "}"
+	return result
 }
 
 func GetOutputFormatFromPath(path string) (OutputFormat, error) {
