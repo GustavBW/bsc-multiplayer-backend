@@ -15,11 +15,17 @@ const (
 	ORIGIN_TYPE_SERVER OriginType = "server"
 )
 
-type AbstractEventHandler = func(*Lobby, *Client, []byte) error
+type AbstractEventHandler = func(*Lobby, *Client, MessageID, []byte) error
 
-var NO_HANDLER_YET = func(lobby *Lobby, client *Client, data []byte) error {
-	log.Printf("No handler for message ID %d", client.ID)
+var NO_HANDLER_YET AbstractEventHandler = func(lobby *Lobby, client *Client, messageID MessageID, data []byte) error {
+	log.Printf("[event] No handler for message ID %d", client.ID)
 	return fmt.Errorf("no handler for message ID %d", client.ID)
+}
+
+// For events that only the server may send, and which, if recieved by the server, should be ignored.
+var INTENTIONAL_IGNORE_HANDLER AbstractEventHandler = func(lobby *Lobby, client *Client, messageID MessageID, data []byte) error {
+	log.Printf("[event] Client %d be trying to send dubious messages, message id %d, ignored.", client.ID, messageID)
+	return nil
 }
 
 // All events start with 2 big endian uint32's, the first being the user id, the second being the event id
@@ -34,7 +40,14 @@ type EventSpecification struct {
 	//In bytes, excluding sender id and event id
 	ExpectedMinSize uint32
 	Name            string
-	Handler         AbstractEventHandler
+	// The handler is invoked only after a series of checks have been completed:
+	//
+	// 1. The client is part of the targeted lobby
+	//
+	// 2. The client is allowed to send the message
+	//
+	// 3. The message is of at least the expected size
+	Handler AbstractEventHandler
 }
 
 func NewSpecification(id MessageID, name string, whoMaySend map[OriginType]bool, minLength uint32, handler AbstractEventHandler) *EventSpecification {
@@ -75,7 +88,11 @@ var OWNER_AND_GUESTS = map[OriginType]bool{
 }
 
 // 0b -> +Nb: utf8 string: Debug message
-var DEBUG_EVENT = NewSpecification(0, "DebugInfo", ALL_ALLOWED, 8, NO_HANDLER_YET)
+var DEBUG_EVENT = NewSpecification(0, "DebugInfo", ALL_ALLOWED, 0, func(lobby *Lobby, client *Client, messageID MessageID, data []byte) error {
+	//TODO: This kinda allows all users to debug onto the server, which is a bit of a security risk.
+	log.Printf("[debug event] %s", fmt.Sprintf("Client id %d says: %s", client.ID, string(data)))
+	return nil
+})
 
 // Full range: 0 to 4,294,967,295
 //
@@ -97,12 +114,12 @@ var ALL_EVENTS = map[MessageID]*EventSpecification{
 // 0b -> 3b: uint32: Player ID
 //
 // 4b -> +Nb: utf8 string: Player IGN
-var PLAYER_JOINED_EVENT = NewSpecification(1, "PlayerJoined", SERVER_ONLY, 4, NO_HANDLER_YET)
+var PLAYER_JOINED_EVENT = NewSpecification(1, "PlayerJoined", SERVER_ONLY, 4, INTENTIONAL_IGNORE_HANDLER)
 
 // 0b -> 3b: uint32: Player ID
 //
 // 4b -> +Nb: utf8 string: Player IGN
-var PLAYER_JOIN_ATTEMPT_EVENT = NewSpecification(2, "PlayerJoinAttempt", SERVER_ONLY, 4, NO_HANDLER_YET)
+var PLAYER_JOIN_ATTEMPT_EVENT = NewSpecification(2, "PlayerJoinAttempt", SERVER_ONLY, 4, INTENTIONAL_IGNORE_HANDLER)
 
 // 0b -> 3b: uint32: Player ID
 //
@@ -117,13 +134,15 @@ var PLAYER_JOIN_DECLINED_EVENT = NewSpecification(4, "PlayerJoinDeclined", OWNER
 // 0b -> 3b: uint32: Player ID
 //
 // 4b -> +Nb: utf8 string: Player IGN
-var PLAYER_LEFT_EVENT = NewSpecification(5, "PlayerLeft", SERVER_ONLY, 4, NO_HANDLER_YET)
+var PLAYER_LEFT_EVENT = NewSpecification(5, "PlayerLeft", SERVER_ONLY, 4, INTENTIONAL_IGNORE_HANDLER)
 
 // No additional data
-var LOBBY_CLOSING_EVENT = NewSpecification(6, "LobbyClosing", SERVER_ONLY, 0, NO_HANDLER_YET)
+var LOBBY_CLOSING_EVENT = NewSpecification(6, "LobbyClosing", SERVER_ONLY, 0, INTENTIONAL_IGNORE_HANDLER)
 
 // 0b -> +Nb: utf8 string: Player IGN
 var PLAYER_LEAVING_EVENT = NewSpecification(7, "PlayerLeaving", OWNER_AND_GUESTS, 0, NO_HANDLER_YET)
+
+var SERVER_CLOSING_EVENT = NewSpecification(8, "ServerClosing", SERVER_ONLY, 0, INTENTIONAL_IGNORE_HANDLER)
 
 // 1-999: Lobby Management
 var LOBBY_MANAGEMENT_EVENTS = map[MessageID]*EventSpecification{
@@ -161,7 +180,7 @@ var DIFFICULTY_SELECT_FOR_MINIGAME_EVENT = NewSpecification(2000, "DifficultySel
 //
 // 8b -> +Nb: utf8 string: Difficulty Name
 var DIFFICULTY_CONFIRMED_FOR_MINIGAME_EVENT = NewSpecification(2001, "DifficultyConfirmedForMinigame", OWNER_ONLY, 8, NO_HANDLER_YET)
-var PLAYERS_DECLARE_INTENT_EVENT = NewSpecification(2002, "PlayersDeclareIntentForMinigame", SERVER_ONLY, 0, NO_HANDLER_YET)
+var PLAYERS_DECLARE_INTENT_EVENT = NewSpecification(2002, "PlayersDeclareIntentForMinigame", SERVER_ONLY, 0, INTENTIONAL_IGNORE_HANDLER)
 
 // 0b -> 3b: uint32: Player ID
 //
@@ -172,7 +191,7 @@ var PLAYER_READY_EVENT = NewSpecification(2003, "PlayerReadyForMinigame", OWNER_
 //
 // 4b -> +Nb: utf8 string: Player IGN
 var PLAYER_ABORTING_MINIGAME_EVENT = NewSpecification(2004, "PlayerAbortingMinigame", OWNER_AND_GUESTS, 4, NO_HANDLER_YET)
-var MINIGAME_START_EVENT = NewSpecification(2005, "EnterMinigame", SERVER_ONLY, 0, NO_HANDLER_YET)
+var MINIGAME_START_EVENT = NewSpecification(2005, "EnterMinigame", SERVER_ONLY, 0, INTENTIONAL_IGNORE_HANDLER)
 
 var MINIGAME_INITIATION_EVENTS = map[MessageID]*EventSpecification{
 	DIFFICULTY_SELECT_FOR_MINIGAME_EVENT.ID:    DIFFICULTY_SELECT_FOR_MINIGAME_EVENT,

@@ -56,14 +56,7 @@ func ParseArgsAndApplyENV() error {
 
 // Overwrites any env variables currently set in environment
 func LoadDevConfig() error {
-	err := LoadCustomConfig("dev.env")
-	if err != nil {
-		return err
-	}
-	return loadDevCredentials()
-}
-func loadDevCredentials() error {
-	return LoadCustomConfig("dev.credentials")
+	return LoadCustomConfig("dev.env")
 }
 
 // Overwrites any env variables currently set in environment

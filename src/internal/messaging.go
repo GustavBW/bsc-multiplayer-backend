@@ -43,8 +43,8 @@ func ExtractClientIDAndMessageID(msg []byte) (ClientID, MessageID, []byte, error
 
 	if spec, exists := ALL_EVENTS[messageID]; !exists {
 		return 0, 0, []byte{}, fmt.Errorf("message ID %d not found", messageID)
-	} else if len(msg) <= int(spec.ExpectedMinSize) {
-		return 0, 0, []byte{}, fmt.Errorf("message size too small. Expected at least %d bytes, got %d", spec.ExpectedMinSize, len(msg))
+	} else if uint32(len(msg)) <= spec.ExpectedMinSize {
+		return 0, 0, []byte{}, fmt.Errorf("message size too small. Expected at least %d bytes for message type %s, got %d", spec.ExpectedMinSize, spec.Name, len(msg))
 	}
 
 	return ClientID(userID), MessageID(messageID), msg[8:], nil

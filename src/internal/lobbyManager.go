@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"fmt"
 	"log"
 	"sync"
 
@@ -10,16 +11,19 @@ import (
 
 // LobbyManager manages all the lobbies
 type LobbyManager struct {
-	Lobbies     map[LobbyID]*Lobby
-	nextLobbyID LobbyID
-	Sync        sync.Mutex
-	CloseQueue  chan *Lobby // Queue of lobbies that need to be closed
+	Lobbies           map[LobbyID]*Lobby
+	nextLobbyID       LobbyID
+	Sync              sync.Mutex
+	acceptsNewLobbies bool
+	CloseQueue        chan *Lobby // Queue of lobbies that need to be closed
 }
 
 func CreateLobbyManager() *LobbyManager {
 	lm := &LobbyManager{
-		Lobbies:    make(map[LobbyID]*Lobby),
-		CloseQueue: make(chan *Lobby, 10), // A queue to handle closing lobbies
+		Lobbies:           make(map[LobbyID]*Lobby),
+		nextLobbyID:       0,
+		acceptsNewLobbies: true,
+		CloseQueue:        make(chan *Lobby, 10), // A queue to handle closing lobbies
 	}
 
 	go lm.processClosures() // Start a goroutine to process lobby closures
@@ -34,19 +38,41 @@ func (lm *LobbyManager) processClosures() {
 	}
 }
 
+func (lm *LobbyManager) ShutdownLobbyManager() {
+	lm.Sync.Lock()
+	lm.acceptsNewLobbies = false
+	defer lm.Sync.Unlock()
+
+	log.Printf("[lob man] Shutting down %d lobbies", len(lm.Lobbies))
+
+	// Close all lobbies
+	for _, lobby := range lm.Lobbies {
+		lobby.BroadcastMessage(SERVER_ID, PrepareServerMessage(SERVER_CLOSING_EVENT))
+		lobby.close()
+	}
+
+	//Dunno if this should be done like this
+	close(lm.CloseQueue)
+}
+
 // Unregister a lobby and clean it up
 func (lm *LobbyManager) UnregisterLobby(lobby *Lobby) {
 	lm.Sync.Lock()
 	defer lm.Sync.Unlock()
 
 	delete(lm.Lobbies, lobby.ID)
+	lobby.close()
 	log.Println("Lobby removed, id:", lobby.ID)
 }
 
 // Create a new lobby and assign an owner
-func (lm *LobbyManager) CreateLobby(ownerID ClientID) *Lobby {
+func (lm *LobbyManager) CreateLobby(ownerID ClientID) (*Lobby, error) {
 	lm.Sync.Lock()
 	defer lm.Sync.Unlock()
+
+	if !lm.acceptsNewLobbies {
+		return nil, fmt.Errorf("[lob man] Lobby manager is not accepting new lobbies at this point")
+	}
 
 	lobbyID := lm.nextLobbyID
 	lm.nextLobbyID++
@@ -60,8 +86,8 @@ func (lm *LobbyManager) CreateLobby(ownerID ClientID) *Lobby {
 	}
 	lm.Lobbies[lobbyID] = lobby
 
-	log.Println("Lobby created, id:", lobbyID)
-	return lobby
+	log.Println("[lob man] Lobby created, id:", lobbyID)
+	return lobby, nil
 }
 
 func (lm *LobbyManager) IsJoinPossible(lobbyID LobbyID, clientID ClientID) *LobbyJoinError {
