@@ -188,6 +188,7 @@ func handleWebSocket(lobbyManager *internal.LobbyManager, w http.ResponseWriter,
 	if joinError := lobbyManager.JoinLobby(uint32(lobbyID), uint32(userID), IGN, conn); joinError != nil {
 		//Send as debug message over WS instead
 		msg := internal.PrepareServerMessage(internal.DEBUG_EVENT)
+		msg = append(msg, util.BytesOfUint32(500)...)
 		msg = append(msg, []byte(joinError.Error())...)
 		conn.WriteMessage(websocket.TextMessage, util.EncodeBase16(msg))
 		if err := conn.Close(); err != nil {

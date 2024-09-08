@@ -108,14 +108,14 @@ func (lobby *Lobby) handleConnection(client *Client) {
 
 			if decodeErr != nil {
 				log.Printf("[lobby] Error decoding message from user %d: %v", client.ID, decodeErr)
-				if cantSendDebugInfo := SendDebugInfoToClient(client, "Error decoding message"); cantSendDebugInfo != nil {
+				if cantSendDebugInfo := SendDebugInfoToClient(client, 400, "Error decoding message"); cantSendDebugInfo != nil {
 					log.Printf("[lobby] Error sending debug info to user %d: %v", client.ID, cantSendDebugInfo)
 					break
 				}
 			}
 		} else if dataType != websocket.BinaryMessage {
 			log.Printf("[lobby] Invalid message type from user %d", client.ID)
-			if cantSendDebugInfo := SendDebugInfoToClient(client, "Invalid message type"); cantSendDebugInfo != nil {
+			if cantSendDebugInfo := SendDebugInfoToClient(client, 404, "Invalid message type"); cantSendDebugInfo != nil {
 				log.Printf("[lobby] Error sending debug info to user %d: %v", client.ID, cantSendDebugInfo)
 				break
 			}
@@ -127,7 +127,7 @@ func (lobby *Lobby) handleConnection(client *Client) {
 
 		if extractErr != nil {
 			log.Printf("[lobby] Error in message from client id %d: %s", client.ID, extractErr.Error())
-			if cantSendDebugInfo := SendDebugInfoToClient(client, extractErr.Error()); cantSendDebugInfo != nil {
+			if cantSendDebugInfo := SendDebugInfoToClient(client, 400, extractErr.Error()); cantSendDebugInfo != nil {
 				log.Printf("[lobby] Error sending debug info to user %d: %v", client.ID, cantSendDebugInfo)
 				break
 			}
@@ -140,7 +140,7 @@ func (lobby *Lobby) handleConnection(client *Client) {
 		if processingError := lobby.processClientMessage(clientID, messageID, remainder); processingError != nil {
 			log.Printf("[lobby] Error processing message from clientID %d: %v", clientID, processingError)
 
-			if cantSendDebugInfo := SendDebugInfoToClient(client, "Error processing message: "+processingError.Error()); cantSendDebugInfo != nil {
+			if cantSendDebugInfo := SendDebugInfoToClient(client, 500, "Error processing message: "+processingError.Error()); cantSendDebugInfo != nil {
 				log.Printf("[lobby] Error sending debug info to user %d: %v", client.ID, cantSendDebugInfo)
 				break
 			}

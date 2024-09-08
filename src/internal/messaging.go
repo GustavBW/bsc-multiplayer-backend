@@ -19,17 +19,21 @@ func SetServerID(id uint32, idBytes []byte) {
 }
 
 // When the server writes to the client, it sends a string and uses own id and debug message id 00...00
-func SendDebugInfoToClient(client *Client, message string) error {
+func SendDebugInfoToClient(client *Client, code uint32, message string) error {
 	var messageBody = PrepareServerMessage(DEBUG_EVENT)
-	var withMessage = append(messageBody, []byte(message)...)
+	var withCode = append(messageBody, util.BytesOfUint32(code)...)
+	var withMessage = append(withCode, []byte(message)...)
+	var isBinary = true
 	switch client.Encoding {
 	case meta.MESSAGE_ENCODING_BASE16:
+		isBinary = false
 		withMessage = util.EncodeBase16(withMessage)
 	case meta.MESSAGE_ENCODING_BASE64:
+		isBinary = false
 		withMessage = util.EncodeBase64(withMessage)
 	}
 
-	return client.Conn.WriteMessage(websocket.BinaryMessage, withMessage)
+	return client.Conn.WriteMessage(util.Ternary(isBinary, websocket.BinaryMessage, websocket.TextMessage), withMessage)
 }
 
 // Appends the message id and server id to a new byte array
