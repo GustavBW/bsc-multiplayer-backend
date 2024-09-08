@@ -5,6 +5,7 @@ import (
 	"log"
 	"sync"
 
+	"github.com/GustavBW/bsc-multiplayer-backend/src/meta"
 	"github.com/GustavBW/bsc-multiplayer-backend/src/util"
 	"github.com/gorilla/websocket"
 )
@@ -16,14 +17,16 @@ type LobbyManager struct {
 	Sync              sync.Mutex
 	acceptsNewLobbies bool
 	CloseQueue        chan *Lobby // Queue of lobbies that need to be closed
+	configuration     *meta.RuntimeConfiguration
 }
 
-func CreateLobbyManager() *LobbyManager {
+func CreateLobbyManager(runtimeConfiguration *meta.RuntimeConfiguration) *LobbyManager {
 	lm := &LobbyManager{
 		Lobbies:           make(map[LobbyID]*Lobby),
 		nextLobbyID:       0,
 		acceptsNewLobbies: true,
 		CloseQueue:        make(chan *Lobby, 10), // A queue to handle closing lobbies
+		configuration:     runtimeConfiguration,
 	}
 
 	go lm.processClosures() // Start a goroutine to process lobby closures
@@ -66,7 +69,7 @@ func (lm *LobbyManager) UnregisterLobby(lobby *Lobby) {
 }
 
 // Create a new lobby and assign an owner
-func (lm *LobbyManager) CreateLobby(ownerID ClientID) (*Lobby, error) {
+func (lm *LobbyManager) CreateLobby(ownerID ClientID, userSetEncoding meta.MessageEncoding) (*Lobby, error) {
 	lm.Sync.Lock()
 	defer lm.Sync.Unlock()
 
@@ -86,7 +89,28 @@ func (lm *LobbyManager) CreateLobby(ownerID ClientID) (*Lobby, error) {
 	}
 	lm.Lobbies[lobbyID] = lobby
 
-	log.Println("[lob man] Lobby created, id:", lobbyID)
+	var encodingToUse meta.MessageEncoding
+	//If no encoding is given, use whatever the lm is set to
+	if userSetEncoding == meta.MESSAGE_ENCODING_BINARY {
+		encodingToUse = lm.configuration.Encoding
+	}
+	// Strategy pattern with the added spice of partial application
+	switch encodingToUse {
+	case meta.MESSAGE_ENCODING_BINARY:
+		lobby.BroadcastMessage = func(senderID ClientID, message []byte) []*Client {
+			return BroadcastMessageBinary(lobby, senderID, message)
+		}
+	case meta.MESSAGE_ENCODING_BASE16:
+		lobby.BroadcastMessage = func(senderID ClientID, message []byte) []*Client {
+			return BroadcastMessageBase16(lobby, senderID, message)
+		}
+	case meta.MESSAGE_ENCODING_BASE64:
+		lobby.BroadcastMessage = func(senderID ClientID, message []byte) []*Client {
+			return BroadcastMessageBase64(lobby, senderID, message)
+		}
+	}
+
+	log.Println("[lob man] Lobby created, id:", lobbyID, " chosen broadcasting encoding: ", encodingToUse)
 	return lobby, nil
 }
 

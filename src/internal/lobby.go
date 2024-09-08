@@ -36,12 +36,13 @@ func NewClient(id ClientID, IGN string, clientType OriginType, conn *websocket.C
 
 // Lobby represents a lobby with a set of users
 type Lobby struct {
-	ID         LobbyID
-	OwnerID    ClientID
-	Clients    map[ClientID]*Client // UserID to User mapping
-	Sync       sync.Mutex           // Protects access to the Users map
-	Closing    bool                 // Indicates if the lobby is in the process of closing
-	CloseQueue chan<- *Lobby        // Queue of lobbies that need to be closed
+	ID               LobbyID
+	OwnerID          ClientID
+	Clients          map[ClientID]*Client // UserID to User mapping
+	Sync             sync.Mutex           // Protects access to the Users map
+	Closing          bool                 // Indicates if the lobby is in the process of closing
+	BroadcastMessage func(senderID ClientID, message []byte) []*Client
+	CloseQueue       chan<- *Lobby // Queue of lobbies that need to be closed
 	//Maybe introduce message channel for messages to be sent to the lobby
 }
 
@@ -61,29 +62,6 @@ type LobbyJoinError struct {
 
 func (e *LobbyJoinError) Error() string {
 	return fmt.Sprintf("Failed to join lobby %d: %s", e.LobbyID, e.Reason)
-}
-
-// BroadcastMessage sends a message to all users in the lobby except the sender
-//
-// # Expects the message to be pre-pended with the required clientID and messageID
-//
-// # DOES NOT Check whether or not the sender is allowed to broadcast that message
-//
-// LOCKS
-func (lobby *Lobby) BroadcastMessage(senderID ClientID, message []byte) {
-	lobby.Sync.Lock()
-	defer lobby.Sync.Unlock()
-
-	for userID, user := range lobby.Clients {
-		if userID != senderID {
-			err := user.Conn.WriteMessage(websocket.BinaryMessage, message)
-			if err != nil {
-				log.Println("Error sending message to user:", userID, err)
-				user.Conn.Close()
-				delete(lobby.Clients, userID) // Remove from lobby on error
-			}
-		}
-	}
 }
 
 // Handle user connection and disconnection events

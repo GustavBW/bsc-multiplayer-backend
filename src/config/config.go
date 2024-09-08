@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/GustavBW/bsc-multiplayer-backend/src/meta"
 	"github.com/joho/godotenv"
 )
 
@@ -16,42 +17,63 @@ var cache = map[string]string{}
 
 // Checks the exec args and loads the first one found. Ignores the rest.
 // Accepts flags: "--dev", "--prod" (prod is handled by the docker-compose file currentyly)
-func ParseArgsAndApplyENV() error {
+func ParseArgsAndApplyENV() (*meta.RuntimeConfiguration, error) {
 	wd, wdErr := os.Getwd()
 	if wdErr != nil {
-		return fmt.Errorf("[config] Error getting working directory: %s", wdErr.Error())
+		return nil, fmt.Errorf("[config] Error getting working directory: %s", wdErr.Error())
 	}
 	log.Printf("[config] Working directory: %s\n", wd)
 	if sharedEnvErr := LoadCustomConfig("shared.env"); sharedEnvErr != nil {
-		return sharedEnvErr
+		return nil, sharedEnvErr
 	}
 
 	args := os.Args
 	var envErr error
+	var configuration = meta.NewRuntimeConfiguration(meta.RUNTIME_MODE_DEV, meta.MESSAGE_ENCODING_BINARY)
 	for _, arg := range args[1:] {
 		if arg == "--dev" {
 			log.Println("[config] --dev flag found, loading dev config")
+			configuration.Mode = meta.RUNTIME_MODE_DEV
 			envErr = LoadDevConfig()
 		}
 		if arg == "--prod" {
 			log.Println("[config] --prod flag found, loading prod config")
+			configuration.Mode = meta.RUNTIME_MODE_PROD
 			envErr = LoadProdConfig()
 		}
 		if arg == "--tools" {
 			log.Println("[config] --tools flag found, executing tools on args: ", args[1:])
+			configuration.Mode = meta.RUNTIME_MODE_TOOL
 			if toolErr := HandleToolRequest(args[1:]); toolErr != nil {
-				return toolErr
+				return nil, toolErr
 			}
 			log.Println("[config] --tools flag found and executed, closing process")
 			os.Exit(0)
 		}
+		if arg == "messageEncoding" {
+			var argSplit = strings.Split(strings.Trim(arg, " "), "=")
+			if len(argSplit) != 2 {
+				return nil, fmt.Errorf("[config] Invalid messageEncoding flag, expected format: messageEncoding=base16|base64|binary")
+			}
+			switch args[2] {
+			case "base16":
+				configuration.Encoding = meta.MESSAGE_ENCODING_BASE16
+			case "base64":
+				configuration.Encoding = meta.MESSAGE_ENCODING_BASE64
+			case "binary":
+				configuration.Encoding = meta.MESSAGE_ENCODING_BINARY
+			default: //If the setting is given, but doesn't match any of the above, give an error
+				envErr = fmt.Errorf("[config] Invalid messageEncoding flag, expected format: messageEncoding=\"base16|base64|binary\"")
+			}
+
+		}
 
 		if envErr != nil {
-			return envErr
+			return nil, envErr
 		}
 	}
 
-	return nil
+	return configuration, nil
 }
 
 // Overwrites any env variables currently set in environment

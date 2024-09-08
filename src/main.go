@@ -12,6 +12,7 @@ import (
 
 	"github.com/GustavBW/bsc-multiplayer-backend/src/config"
 	"github.com/GustavBW/bsc-multiplayer-backend/src/internal"
+	"github.com/GustavBW/bsc-multiplayer-backend/src/meta"
 	"github.com/GustavBW/bsc-multiplayer-backend/src/util"
 	"github.com/gorilla/websocket"
 )
@@ -63,13 +64,15 @@ func main() {
 		panic(eventInitErr)
 	}
 
-	if err := config.ParseArgsAndApplyENV(); err != nil {
-		//Not necessarily an error - might also be a tool command ending the process
-		panic(err)
+	var runtimeConfiguration *meta.RuntimeConfiguration
+	var envErr error
+	if runtimeConfiguration, envErr = config.ParseArgsAndApplyENV(); envErr != nil {
+		//Tool commands end the process before returning here
+		panic(envErr)
 	}
 	internal.SetServerID(SERVER_ID, SERVER_ID_BYTES)
 
-	lobbyManager := internal.CreateLobbyManager()
+	lobbyManager := internal.CreateLobbyManager(runtimeConfiguration)
 
 	// Create a new ServeMux
 	mux := http.NewServeMux()
@@ -99,6 +102,7 @@ var upgrader = websocket.Upgrader{
 
 func createLobbyHandler(lobbyManager *internal.LobbyManager, w http.ResponseWriter, r *http.Request) {
 	ownerIDStr := r.URL.Query().Get("ownerID")
+	userSetEncodingStr := r.URL.Query().Get("encoding")
 	// Parse both as uint32
 	ownerID, ownerIDErr := strconv.ParseUint(ownerIDStr, 10, 32)
 	if ownerIDErr != nil {
@@ -108,7 +112,17 @@ func createLobbyHandler(lobbyManager *internal.LobbyManager, w http.ResponseWrit
 		return
 	}
 
-	lobby, err := lobbyManager.CreateLobby(uint32(ownerID))
+	var userSetEncoding meta.MessageEncoding
+	switch userSetEncodingStr {
+	case string(meta.MESSAGE_ENCODING_BASE16):
+		userSetEncoding = meta.MESSAGE_ENCODING_BASE16
+	case string(meta.MESSAGE_ENCODING_BASE64):
+		userSetEncoding = meta.MESSAGE_ENCODING_BASE64
+	default:
+		userSetEncoding = meta.MESSAGE_ENCODING_BINARY
+	}
+
+	lobby, err := lobbyManager.CreateLobby(uint32(ownerID), userSetEncoding)
 	if err != nil {
 		//log.Println("Error creating lobby: ", err)
 		w.Header().Set("Default-Debug-Header", "Error creating lobby: "+err.Error())
@@ -117,7 +131,7 @@ func createLobbyHandler(lobbyManager *internal.LobbyManager, w http.ResponseWrit
 	}
 	w.WriteHeader(http.StatusOK)
 	// Manual JSON encoding. Not ideal, better to use json.Marshal
-	w.Write([]byte("{\"id\": \"" + strconv.FormatUint(uint64(lobby.ID), 10) + "\"}"))
+	w.Write([]byte(fmt.Sprintf("{\"id\": %s}", strconv.FormatUint(uint64(lobby.ID), 10))))
 }
 
 func handleWebSocket(lobbyManager *internal.LobbyManager, w http.ResponseWriter, r *http.Request) {
