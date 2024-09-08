@@ -7,6 +7,7 @@ import (
 	"log"
 	"sync"
 
+	"github.com/GustavBW/bsc-multiplayer-backend/src/meta"
 	"github.com/gorilla/websocket"
 )
 
@@ -15,22 +16,24 @@ type LobbyID = uint32
 
 // Client represents a user connected to a lobby
 type Client struct {
-	ID      ClientID
-	IDBytes []byte
-	IGN     string
-	Type    OriginType
-	Conn    *websocket.Conn
+	ID       ClientID
+	IDBytes  []byte
+	IGN      string
+	Type     OriginType
+	Encoding meta.MessageEncoding
+	Conn     *websocket.Conn
 }
 
-func NewClient(id ClientID, IGN string, clientType OriginType, conn *websocket.Conn) *Client {
+func NewClient(id ClientID, IGN string, clientType OriginType, conn *websocket.Conn, encoding meta.MessageEncoding) *Client {
 	userIDBytes := make([]byte, 4)
 	binary.BigEndian.PutUint32(userIDBytes, id)
 	return &Client{
-		ID:      id,
-		IDBytes: userIDBytes,
-		IGN:     IGN,
-		Type:    clientType,
-		Conn:    conn,
+		ID:       id,
+		IDBytes:  userIDBytes,
+		IGN:      IGN,
+		Type:     clientType,
+		Conn:     conn,
+		Encoding: encoding,
 	}
 }
 
@@ -42,6 +45,7 @@ type Lobby struct {
 	Sync             sync.Mutex           // Protects access to the Users map
 	Closing          bool                 // Indicates if the lobby is in the process of closing
 	BroadcastMessage func(senderID ClientID, message []byte) []*Client
+	Encoding         meta.MessageEncoding
 	CloseQueue       chan<- *Lobby // Queue of lobbies that need to be closed
 	//Maybe introduce message channel for messages to be sent to the lobby
 }

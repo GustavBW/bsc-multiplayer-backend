@@ -60,6 +60,7 @@ func ComputeStructure(messageName string, shortDescription ReferenceStructure) (
 			Kind:        element.Kind,
 		})
 		offset += sizeOfElement
+		minimumTotalSize += sizeOfElement
 	}
 	return minimumTotalSize, computedStructure
 }

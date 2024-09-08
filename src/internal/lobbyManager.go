@@ -84,12 +84,12 @@ func (lm *LobbyManager) CreateLobby(ownerID ClientID, userSetEncoding meta.Messa
 		ID:         lobbyID,
 		OwnerID:    ownerID,
 		Clients:    make(map[ClientID]*Client),
-		CloseQueue: lm.CloseQueue,
 		Closing:    false,
+		CloseQueue: lm.CloseQueue,
 	}
 	lm.Lobbies[lobbyID] = lobby
 
-	var encodingToUse meta.MessageEncoding
+	var encodingToUse meta.MessageEncoding = userSetEncoding
 	//If no encoding is given, use whatever the lm is set to
 	if userSetEncoding == meta.MESSAGE_ENCODING_BINARY {
 		encodingToUse = lm.configuration.Encoding
@@ -97,14 +97,17 @@ func (lm *LobbyManager) CreateLobby(ownerID ClientID, userSetEncoding meta.Messa
 	// Strategy pattern with the added spice of partial application
 	switch encodingToUse {
 	case meta.MESSAGE_ENCODING_BINARY:
+		lobby.Encoding = meta.MESSAGE_ENCODING_BINARY
 		lobby.BroadcastMessage = func(senderID ClientID, message []byte) []*Client {
 			return BroadcastMessageBinary(lobby, senderID, message)
 		}
 	case meta.MESSAGE_ENCODING_BASE16:
+		lobby.Encoding = meta.MESSAGE_ENCODING_BASE16
 		lobby.BroadcastMessage = func(senderID ClientID, message []byte) []*Client {
 			return BroadcastMessageBase16(lobby, senderID, message)
 		}
 	case meta.MESSAGE_ENCODING_BASE64:
+		lobby.Encoding = meta.MESSAGE_ENCODING_BASE64
 		lobby.BroadcastMessage = func(senderID ClientID, message []byte) []*Client {
 			return BroadcastMessageBase64(lobby, senderID, message)
 		}
@@ -140,6 +143,7 @@ func (lm *LobbyManager) JoinLobby(lobbyID LobbyID, clientID ClientID, clientIGN 
 
 	lobby, exists := lm.Lobbies[lobbyID]
 	if !exists {
+		lm.Sync.Unlock()
 		return &LobbyJoinError{Reason: "Lobby does not exist", Type: JoinErrorNotFound, LobbyID: lobbyID}
 	}
 	lm.Sync.Unlock()
@@ -156,7 +160,7 @@ func (lm *LobbyManager) JoinLobby(lobbyID LobbyID, clientID ClientID, clientIGN 
 		return &LobbyJoinError{Reason: "User is already in lobby", Type: JoinErrorAlreadyInLobby, LobbyID: lobbyID}
 	}
 
-	user := NewClient(clientID, clientIGN, util.Ternary(lobby.OwnerID == clientID, ORIGIN_TYPE_OWNER, ORIGIN_TYPE_GUEST), conn)
+	user := NewClient(clientID, clientIGN, util.Ternary(lobby.OwnerID == clientID, ORIGIN_TYPE_OWNER, ORIGIN_TYPE_GUEST), conn, lobby.Encoding)
 	lobby.Clients[clientID] = user
 	// Handle the user's connection
 	go lobby.handleConnection(user)

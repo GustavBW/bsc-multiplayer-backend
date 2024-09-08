@@ -110,16 +110,14 @@ func writeEventSpecsToTSFile(file *os.File) error {
 }
 
 func insertJSDOCCommentDescribingStructure(file *os.File, spec internal.EventSpecification) {
-	file.WriteString(fmt.Sprintf("/** %s Message Structure\n", spec.Name))
-	// 0b -> 3b: uint32: Code (HTTP status code)
-	//
-	// 3b -> +Nb: utf8 string: Message
+	file.WriteString(fmt.Sprintf("/** %s Message Structure\n *\n", spec.Name))
+
 	for _, element := range spec.Structure {
 		isVariable := element.ByteSize == 0
 		if isVariable {
-			file.WriteString(fmt.Sprintf(" *\t %db -> +Nb:\t%s:\t%s\n", element.Offset, element.Kind, element.Description))
+			file.WriteString(fmt.Sprintf(" * *\t%db --> +%sb:\t%-10s:\t%s\n", element.Offset, "N", element.Kind, element.Description))
 		} else {
-			file.WriteString(fmt.Sprintf(" *\t %db -> %db:\t%s:\t%s\n", element.Offset, element.Offset+element.ByteSize, element.Kind, element.Description))
+			file.WriteString(fmt.Sprintf(" * *\t%db --> %db:\t%-10s:\t%s\n", element.Offset, element.Offset+element.ByteSize, element.Kind, element.Description))
 		}
 	}
 	file.WriteString(" */\n")

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/GustavBW/bsc-multiplayer-backend/src/meta"
 	"github.com/GustavBW/bsc-multiplayer-backend/src/util"
 	"github.com/gorilla/websocket"
 )
@@ -21,6 +22,13 @@ func SetServerID(id uint32, idBytes []byte) {
 func SendDebugInfoToClient(client *Client, message string) error {
 	var messageBody = PrepareServerMessage(DEBUG_EVENT)
 	var withMessage = append(messageBody, []byte(message)...)
+	switch client.Encoding {
+	case meta.MESSAGE_ENCODING_BASE16:
+		withMessage = util.EncodeBase16(withMessage)
+	case meta.MESSAGE_ENCODING_BASE64:
+		withMessage = util.EncodeBase64(withMessage)
+	}
+
 	return client.Conn.WriteMessage(websocket.BinaryMessage, withMessage)
 }
 
@@ -44,7 +52,7 @@ func ExtractClientIDAndMessageID(msg []byte) (ClientID, MessageID, []byte, error
 
 	if spec, exists := ALL_EVENTS[messageID]; !exists {
 		return 0, 0, []byte{}, fmt.Errorf("message ID %d not found", messageID)
-	} else if uint32(len(msg)) <= spec.ExpectedMinSize {
+	} else if uint32(len(msg)) < spec.ExpectedMinSize {
 		return 0, 0, []byte{}, fmt.Errorf("message size too small. Expected at least %d bytes for message type %s, got %d", spec.ExpectedMinSize, spec.Name, len(msg))
 	}
 

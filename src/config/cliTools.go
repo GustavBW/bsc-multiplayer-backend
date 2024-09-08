@@ -31,9 +31,11 @@ func handleEventSpecRequest(args []string) error {
 	for _, arg := range args {
 		if strings.HasPrefix(arg, "--output=") {
 			// Extract the output path
-			outputPath = strings.TrimPrefix(arg, "--output=")
-			// Optionally, remove the quotes if they are present
-			outputPath = strings.Trim(outputPath, `"`)
+			var err error
+			outputPath, err = retrieveValueOfKVArg(arg)
+			if err != nil {
+				return err
+			}
 			break
 		}
 	}

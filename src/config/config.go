@@ -50,12 +50,14 @@ func ParseArgsAndApplyENV() (*meta.RuntimeConfiguration, error) {
 			log.Println("[config] --tools flag found and executed, closing process")
 			os.Exit(0)
 		}
-		if arg == "messageEncoding" {
-			var argSplit = strings.Split(strings.Trim(arg, " "), "=")
-			if len(argSplit) != 2 {
-				return nil, fmt.Errorf("[config] Invalid messageEncoding flag, expected format: messageEncoding=base16|base64|binary")
+		if strings.HasPrefix(arg, "messageEncoding") {
+			value, err := retrieveValueOfKVArg(arg)
+			log.Printf("[config] messageEncoding flag found, setting encoding to: \"%s\"", value)
+			if err != nil {
+				envErr = err
+				break
 			}
-			switch args[2] {
+			switch value {
 			case "base16":
 				configuration.Encoding = meta.MESSAGE_ENCODING_BASE16
 			case "base64":

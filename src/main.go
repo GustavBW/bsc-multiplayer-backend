@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"log"
-	"math"
 	"net/http"
 	"os"
 	"os/signal"
@@ -17,7 +16,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-const SERVER_ID = math.MaxUint32
+const SERVER_ID = 4041587326 // or F0E5BA7E in base16
 
 var SERVER_ID_BYTES = util.BytesOfUint32(SERVER_ID)
 
@@ -83,7 +82,7 @@ func main() {
 	})
 
 	// Create an endpoint to create lobbies
-	mux.HandleFunc("/create-lobby", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("POST /create-lobby", func(w http.ResponseWriter, r *http.Request) {
 		createLobbyHandler(lobbyManager, w, r)
 	})
 
@@ -103,6 +102,7 @@ var upgrader = websocket.Upgrader{
 func createLobbyHandler(lobbyManager *internal.LobbyManager, w http.ResponseWriter, r *http.Request) {
 	ownerIDStr := r.URL.Query().Get("ownerID")
 	userSetEncodingStr := r.URL.Query().Get("encoding")
+	log.Println("[delete me] Encoding: ", userSetEncodingStr)
 	// Parse both as uint32
 	ownerID, ownerIDErr := strconv.ParseUint(ownerIDStr, 10, 32)
 	if ownerIDErr != nil {
@@ -114,9 +114,9 @@ func createLobbyHandler(lobbyManager *internal.LobbyManager, w http.ResponseWrit
 
 	var userSetEncoding meta.MessageEncoding
 	switch userSetEncodingStr {
-	case string(meta.MESSAGE_ENCODING_BASE16):
+	case "base16":
 		userSetEncoding = meta.MESSAGE_ENCODING_BASE16
-	case string(meta.MESSAGE_ENCODING_BASE64):
+	case "base64":
 		userSetEncoding = meta.MESSAGE_ENCODING_BASE64
 	default:
 		userSetEncoding = meta.MESSAGE_ENCODING_BINARY
@@ -189,7 +189,7 @@ func handleWebSocket(lobbyManager *internal.LobbyManager, w http.ResponseWriter,
 		//Send as debug message over WS instead
 		msg := internal.PrepareServerMessage(internal.DEBUG_EVENT)
 		msg = append(msg, []byte(joinError.Error())...)
-		conn.WriteMessage(websocket.BinaryMessage, msg)
+		conn.WriteMessage(websocket.TextMessage, util.EncodeBase16(msg))
 		if err := conn.Close(); err != nil {
 			log.Printf("Failed to close connection: %v", err)
 		}
