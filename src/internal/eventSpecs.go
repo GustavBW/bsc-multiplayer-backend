@@ -182,19 +182,18 @@ var LOBBY_MANAGEMENT_EVENTS = map[MessageID]*EventSpecification{
 }
 
 // 0b -> 3b: uint32: Location ID
-var WALK_TO_LOCATION_EVENT = NewSpecification(1000, "WalkToLocation", OWNER_ONLY, []ShortElementDescriptor{
-	{"Location ID", reflect.Uint32},
-}, NO_HANDLER_YET)
-
-// 0b -> 3b: uint32: Location ID
 var ENTER_LOCATION_EVENT = NewSpecification(1001, "EnterLocation", OWNER_ONLY, []ShortElementDescriptor{
 	{"Location ID", reflect.Uint32},
 }, NO_HANDLER_YET)
 
+var PLAYER_MOVE_EVENT = NewSpecification(1002, "PlayerMove", OWNER_AND_GUESTS, []ShortElementDescriptor{
+	{"Player ID", reflect.Uint32}, {"Location ID", reflect.Uint32},
+}, NO_HANDLER_YET)
+
 // 1000-1999: Colony Events
 var COLONY_EVENTS = map[MessageID]*EventSpecification{
-	WALK_TO_LOCATION_EVENT.ID: WALK_TO_LOCATION_EVENT,
-	ENTER_LOCATION_EVENT.ID:   ENTER_LOCATION_EVENT,
+	ENTER_LOCATION_EVENT.ID: ENTER_LOCATION_EVENT,
+	PLAYER_MOVE_EVENT.ID:    PLAYER_MOVE_EVENT,
 }
 
 // 0b -> 3b: uint32: Minigame ID
