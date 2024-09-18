@@ -34,3 +34,7 @@ go run ./src --tool --print-event-specs --output="<path>"
     path: Defaults to EventSpecifications-<program version>.ts
     Output type is derived from path.
 ```
+For future reference:
+```bash
+go run ./src --tools --print-event-specs --output="../bsc-frontend/otte_frontend/src/integrations/multiplayer_backend/EventSpecifications.ts"
+```
