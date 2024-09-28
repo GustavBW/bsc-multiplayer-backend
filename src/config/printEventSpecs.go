@@ -59,7 +59,7 @@ func writeEventSpecsToTSFile(file *os.File) error {
 	file.WriteString("};\n\n")
 
 	//TS Types - EventSpecification
-	file.WriteString("export type EventSpecification = {\n")
+	file.WriteString("export type EventSpecification<T> = {\n")
 	file.WriteString("\tid: number,\n")
 	file.WriteString("\tname: string,\n")
 	file.WriteString("\tpermissions: SendPermissions,\n")
@@ -68,7 +68,7 @@ func writeEventSpecsToTSFile(file *os.File) error {
 	file.WriteString("};\n\n")
 
 	specs := getOrderedEventSpecs()
-	nameOfEventEnum := "EVENTS"
+	nameOfEventEnum := "EventType"
 	eventEnum := FormatTSEnum(nameOfEventEnum, specs, func(spec internal.EventSpecification) (string, string) {
 		return formatTSConstantName(&spec, ""), fmt.Sprint(spec.ID)
 	})
@@ -77,11 +77,13 @@ func writeEventSpecsToTSFile(file *os.File) error {
 	var tsVarNamesAndIDs = make([]NameAndID, 0, len(specs))
 	//Content
 	for _, spec := range specs {
+		generatedType, generatedTypeName := formatTSTypeForEvent(spec)
+		file.WriteString(generatedType)
 		constantName := formatTSConstantName(&spec, "EVENT")
 		baseName := formatTSConstantName(&spec, "")
 		tsVarNamesAndIDs = append(tsVarNamesAndIDs, NameAndID{Name: constantName, ID: spec.ID})
 		insertJSDOCCommentDescribingStructure(file, spec)
-		file.WriteString(fmt.Sprintf("export const %s: EventSpecification = {\n", constantName))
+		file.WriteString(fmt.Sprintf("export const %s: EventSpecification<%s> = {\n", constantName, generatedTypeName))
 		file.WriteString(fmt.Sprintf("\tid: %s,\n", fmt.Sprintf("%s.%s", nameOfEventEnum, baseName)))
 		file.WriteString(fmt.Sprintf("\tname: \"%s\",\n", spec.Name))
 		file.WriteString(fmt.Sprintf("\tpermissions: %s,\n", formatTSSendPermissions(spec.SendPermissions)))
@@ -103,7 +105,7 @@ func writeEventSpecsToTSFile(file *os.File) error {
 		file.WriteString("}\n")
 	}
 	file.WriteString("\n")
-	file.WriteString("export const EVENT_ID_MAP: {[key: number]: EventSpecification} = {\n")
+	file.WriteString("export const EVENT_ID_MAP: {[key: number]: EventSpecification<any>} = {\n")
 	for i, nameAndID := range tsVarNamesAndIDs {
 		file.WriteString(fmt.Sprintf("\t%d: %s", nameAndID.ID, nameAndID.Name))
 		if i == len(tsVarNamesAndIDs)-1 {
@@ -114,6 +116,24 @@ func writeEventSpecsToTSFile(file *os.File) error {
 	}
 	file.WriteString("};\n")
 	return nil
+}
+
+// Writes a TS type for the message structure of the event
+// Returns the formatted string and the generated type name
+func formatTSTypeForEvent(spec internal.EventSpecification) (string, string) {
+	typeName := spec.Name //allocated for easier modification
+	var toReturn = fmt.Sprintf("export type %s = {\n", typeName)
+
+	for _, element := range spec.Structure {
+		tsType := TSTypeOf(element.Kind)
+		toReturn += fmt.Sprintf("\t/** %s\n", element.Description)
+		toReturn += fmt.Sprintf("\t* go type: %s\n", element.Kind.String())
+		toReturn += "\t*/\n"
+		toReturn += fmt.Sprintf("\t%s: %s;\n", element.FieldName, tsType)
+	}
+
+	toReturn += "}\n"
+	return toReturn, typeName
 }
 
 func insertJSDOCCommentDescribingStructure(file *os.File, spec internal.EventSpecification) {

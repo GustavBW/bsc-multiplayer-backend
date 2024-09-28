@@ -36,5 +36,5 @@ go run ./src --tools --print-event-specs --output="<path>"
 ```
 For future reference:
 ```bash
-go run ./src --tools --print-event-specs --output="../bsc-frontend/otte_frontend/src/integrations/multiplayer_backend/EventSpecifications.ts"
+go run ./src --tools --print-event-specs --output="../bsc-frontend/ursa_frontend/src/integrations/multiplayer_backend/EventSpecifications.ts"
 ```

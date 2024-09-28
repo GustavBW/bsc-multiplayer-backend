@@ -6,16 +6,25 @@ import (
 )
 
 // For use in statically computing elements at the very start of the application
-
 type MessageElementDescriptor struct {
 	ByteSize    uint32 //Byte size of 0 means variable size
 	Offset      uint32
+	FieldName   string
 	Description string
 	Kind        reflect.Kind //We do not intend to encode structs, so this is fine
 }
 type ShortElementDescriptor struct {
 	Description string
+	FieldName   string
 	Kind        reflect.Kind //We do not intend to encode structs, so this is fine
+}
+
+func NewElementDescriptor(description string, fieldName string, kind reflect.Kind) ShortElementDescriptor {
+	return ShortElementDescriptor{
+		Description: description,
+		FieldName:   fieldName,
+		Kind:        kind,
+	}
 }
 
 // In order slice of elements
@@ -56,6 +65,7 @@ func ComputeStructure(messageName string, shortDescription ReferenceStructure) (
 		computedStructure = append(computedStructure, MessageElementDescriptor{
 			ByteSize:    sizeOfElement,
 			Offset:      offset,
+			FieldName:   element.FieldName,
 			Description: element.Description,
 			Kind:        element.Kind,
 		})
