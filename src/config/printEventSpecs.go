@@ -68,14 +68,21 @@ func writeEventSpecsToTSFile(file *os.File) error {
 	file.WriteString("};\n\n")
 
 	specs := getOrderedEventSpecs()
+	nameOfEventEnum := "EVENTS"
+	eventEnum := FormatTSEnum(nameOfEventEnum, specs, func(spec internal.EventSpecification) (string, string) {
+		return formatTSConstantName(&spec, ""), fmt.Sprint(spec.ID)
+	})
+	file.WriteString(eventEnum)
+
 	var tsVarNamesAndIDs = make([]NameAndID, 0, len(specs))
 	//Content
 	for _, spec := range specs {
-		varName := formatTSConstantName(&spec)
-		tsVarNamesAndIDs = append(tsVarNamesAndIDs, NameAndID{Name: varName, ID: spec.ID})
+		constantName := formatTSConstantName(&spec, "EVENT")
+		baseName := formatTSConstantName(&spec, "")
+		tsVarNamesAndIDs = append(tsVarNamesAndIDs, NameAndID{Name: constantName, ID: spec.ID})
 		insertJSDOCCommentDescribingStructure(file, spec)
-		file.WriteString(fmt.Sprintf("export const %s: EventSpecification = {\n", varName))
-		file.WriteString(fmt.Sprintf("\tid: %d,\n", spec.ID))
+		file.WriteString(fmt.Sprintf("export const %s: EventSpecification = {\n", constantName))
+		file.WriteString(fmt.Sprintf("\tid: %s,\n", fmt.Sprintf("%s.%s", nameOfEventEnum, baseName)))
 		file.WriteString(fmt.Sprintf("\tname: \"%s\",\n", spec.Name))
 		file.WriteString(fmt.Sprintf("\tpermissions: %s,\n", formatTSSendPermissions(spec.SendPermissions)))
 		file.WriteString(fmt.Sprintf("\texpectedMinSize: %d,\n", spec.ExpectedMinSize))
@@ -96,7 +103,7 @@ func writeEventSpecsToTSFile(file *os.File) error {
 		file.WriteString("}\n")
 	}
 	file.WriteString("\n")
-	file.WriteString("export const ALL_EVENTS: {[key: number]: EventSpecification} = {\n")
+	file.WriteString("export const EVENT_ID_MAP: {[key: number]: EventSpecification} = {\n")
 	for i, nameAndID := range tsVarNamesAndIDs {
 		file.WriteString(fmt.Sprintf("\t%d: %s", nameAndID.ID, nameAndID.Name))
 		if i == len(tsVarNamesAndIDs)-1 {
@@ -199,7 +206,7 @@ func GetOutputFormatFromPath(path string) (OutputFormat, error) {
 	return "", fmt.Errorf("unsupported file extension: %s", filepath.Ext(path))
 }
 
-func formatTSConstantName(spec *internal.EventSpecification) string {
+func formatTSConstantName(spec *internal.EventSpecification, suffix string) string {
 	var result []rune
 
 	for i, r := range spec.Name {
@@ -211,6 +218,9 @@ func formatTSConstantName(spec *internal.EventSpecification) string {
 		result = append(result, unicode.ToUpper(r))
 	}
 
+	if suffix == "" {
+		return string(result)
+	}
 	// Join the result and append "_EVENT"
-	return fmt.Sprintf("%s_EVENT", string(result))
+	return fmt.Sprintf("%s_%s", string(result), suffix)
 }

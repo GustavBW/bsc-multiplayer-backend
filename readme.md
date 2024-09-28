@@ -20,7 +20,7 @@ For development, it might be useful to switch the datatype of any broadcasted me
 This service is the single source of thruth for multiplayer event handling. Therefore some tools are provided to make it easier to port specifications to other languages and the like. 
 These tools can be invoked by running the executable with the 
 ```bash
---tool
+--tools
 ```
 flag. This wont start the service, but rather end it when execution is complete.
 
@@ -29,10 +29,10 @@ Prints all event specifications and associated data.
 
 Example:
 ```bash
-go run ./src --tool --print-event-specs --output="<path>"
+go run ./src --tools --print-event-specs --output="<path>"
 
-    path: Defaults to EventSpecifications-<program version>.ts
-    Output type is derived from path.
+    # path: Defaults to EventSpecifications-<program version>.ts
+    # Output type (json, ts) is derived from path.
 ```
 For future reference:
 ```bash
