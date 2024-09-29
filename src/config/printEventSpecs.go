@@ -68,16 +68,24 @@ func writeEventSpecsToTSFile(file *os.File) error {
 	file.WriteString("};\n\n")
 
 	specs := getOrderedEventSpecs()
+	//Event Type Enum
 	nameOfEventEnum := "EventType"
 	eventEnum := FormatTSEnum(nameOfEventEnum, specs, func(spec internal.EventSpecification) (string, string) {
 		return formatTSConstantName(&spec, ""), fmt.Sprint(spec.ID)
 	})
 	file.WriteString(eventEnum)
 
+	//Shared Message Parent Interface
+	nameOfSharedMessageParentInterface := "IMessage"
+	file.WriteString("export interface IMessage {\n")
+	file.WriteString("\tsenderID: number\n")
+	file.WriteString("\teventID: number\n")
+	file.WriteString("}\n\n")
+
 	var tsVarNamesAndIDs = make([]NameAndID, 0, len(specs))
 	//Content
 	for _, spec := range specs {
-		generatedType, generatedTypeName := formatTSTypeForEvent(spec)
+		generatedType, generatedTypeName := formatTSTypeForEvent(spec, []string{nameOfSharedMessageParentInterface})
 		file.WriteString(generatedType)
 		constantName := formatTSConstantName(&spec, "EVENT")
 		baseName := formatTSConstantName(&spec, "")
@@ -120,9 +128,21 @@ func writeEventSpecsToTSFile(file *os.File) error {
 
 // Writes a TS type for the message structure of the event
 // Returns the formatted string and the generated type name
-func formatTSTypeForEvent(spec internal.EventSpecification) (string, string) {
-	typeName := spec.Name //allocated for easier modification
-	var toReturn = fmt.Sprintf("export type %s = {\n", typeName)
+func formatTSTypeForEvent(spec internal.EventSpecification, parents []string) (string, string) {
+	var formattedParentExtendsString = ""
+	if len(parents) > 0 {
+		formattedParentExtendsString = "extends "
+	}
+	for index, parent := range parents {
+		if index == len(parents)-1 {
+			formattedParentExtendsString += parent
+		} else {
+			formattedParentExtendsString += fmt.Sprintf("%s, ", parent)
+		}
+	}
+
+	typeName := fmt.Sprintf("%sMessageDTO", spec.Name) //allocated for easier modification
+	var toReturn = fmt.Sprintf("export interface %s %s {\n", typeName, formattedParentExtendsString)
 
 	for _, element := range spec.Structure {
 		tsType := TSTypeOf(element.Kind)
