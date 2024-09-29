@@ -78,7 +78,7 @@ func main() {
 
 	// Create the HTTP route for WebSocket connections
 	mux.HandleFunc("/connect", func(w http.ResponseWriter, r *http.Request) {
-		handleWebSocket(lobbyManager, w, r)
+		webSocketConnectionRequestHandler(lobbyManager, w, r)
 	})
 
 	// Create an endpoint to create lobbies
@@ -134,7 +134,7 @@ func createLobbyHandler(lobbyManager *internal.LobbyManager, w http.ResponseWrit
 	w.Write([]byte(fmt.Sprintf("{\"id\": %s}", strconv.FormatUint(uint64(lobby.ID), 10))))
 }
 
-func handleWebSocket(lobbyManager *internal.LobbyManager, w http.ResponseWriter, r *http.Request) {
+func webSocketConnectionRequestHandler(lobbyManager *internal.LobbyManager, w http.ResponseWriter, r *http.Request) {
 	lobbyIDStr := r.URL.Query().Get("lobbyID")
 	userIDStr := r.URL.Query().Get("clientID")
 	IGN := r.URL.Query().Get("IGN")
