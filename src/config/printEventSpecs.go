@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"time"
 	"unicode"
@@ -71,7 +72,7 @@ func writeEventSpecsToTSFile(file *os.File) error {
 	//Event Type Enum
 	nameOfEventEnum := "EventType"
 	eventEnum := FormatTSEnum(nameOfEventEnum, specs, func(spec internal.EventSpecification) (string, string) {
-		return formatTSConstantName(&spec, ""), fmt.Sprint(spec.ID)
+		return formatTSConstantName(spec.Name, ""), fmt.Sprint(spec.ID)
 	})
 	file.WriteString(eventEnum)
 
@@ -82,13 +83,21 @@ func writeEventSpecsToTSFile(file *os.File) error {
 	file.WriteString("\teventID: number\n")
 	file.WriteString("}\n\n")
 
+	//Print type enum
+	nameOfTypeEnum := "GoType"
+	typeEnum := FormatTSEnum(nameOfTypeEnum, internal.TypesAllowed, func(kind reflect.Kind) (string, string) {
+		fieldName := formatTSConstantName(kind.String(), "")
+		return fieldName, fmt.Sprintf("\"%s\"", kind)
+	})
+	file.WriteString(typeEnum)
+
 	var tsVarNamesAndIDs = make([]NameAndID, 0, len(specs))
 	//Content
 	for _, spec := range specs {
 		generatedType, generatedTypeName := formatTSTypeForEvent(spec, []string{nameOfSharedMessageParentInterface})
 		file.WriteString(generatedType)
-		constantName := formatTSConstantName(&spec, "EVENT")
-		baseName := formatTSConstantName(&spec, "")
+		constantName := formatTSConstantName(spec.Name, "EVENT")
+		baseName := formatTSConstantName(spec.Name, "")
 		tsVarNamesAndIDs = append(tsVarNamesAndIDs, NameAndID{Name: constantName, ID: spec.ID})
 		insertJSDOCCommentDescribingStructure(file, spec)
 		file.WriteString(fmt.Sprintf("export const %s: EventSpecification<%s> = {\n", constantName, generatedTypeName))
@@ -102,7 +111,7 @@ func writeEventSpecsToTSFile(file *os.File) error {
 			file.WriteString(fmt.Sprintf("\t\t\tbyteSize: %d,\n", element.ByteSize))
 			file.WriteString(fmt.Sprintf("\t\t\toffset: %d,\n", element.Offset))
 			file.WriteString(fmt.Sprintf("\t\t\tdescription: \"%s\",\n", element.Description))
-			file.WriteString(fmt.Sprintf("\t\t\ttype: \"%s\"\n", element.Kind))
+			file.WriteString(fmt.Sprintf("\t\t\ttype: %s\n", fmt.Sprintf("%s.%s", nameOfTypeEnum, formatTSConstantName(element.Kind.String(), ""))))
 			if i == len(spec.Structure)-1 {
 				file.WriteString("\t\t}\n")
 			} else {
@@ -246,10 +255,10 @@ func GetOutputFormatFromPath(path string) (OutputFormat, error) {
 	return "", fmt.Errorf("unsupported file extension: %s", filepath.Ext(path))
 }
 
-func formatTSConstantName(spec *internal.EventSpecification, suffix string) string {
+func formatTSConstantName(name string, suffix string) string {
 	var result []rune
 
-	for i, r := range spec.Name {
+	for i, r := range name {
 		// If it's an uppercase letter and it's not the first character, insert an underscore
 		if unicode.IsUpper(r) && i > 0 {
 			result = append(result, '_')
