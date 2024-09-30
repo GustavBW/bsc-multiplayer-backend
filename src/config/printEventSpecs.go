@@ -49,6 +49,14 @@ func writeEventSpecsToTSFile(file *os.File) error {
 	file.WriteString("\tGuest = \"guest\"\n")
 	file.WriteString("};\n\n")
 
+	//Print type enum
+	nameOfTypeEnum := "GoType"
+	typeEnum := FormatTSEnum(nameOfTypeEnum, internal.TypesAllowed, func(kind reflect.Kind) (string, string) {
+		fieldName := formatTSConstantName(kind.String(), "")
+		return fieldName, fmt.Sprintf("\"%s\"", kind)
+	})
+	file.WriteString(typeEnum)
+
 	//TS Types - SendPermissions
 	file.WriteString("export type SendPermissions = { [key in OriginType]: boolean };\n\n")
 
@@ -56,7 +64,7 @@ func writeEventSpecsToTSFile(file *os.File) error {
 	file.WriteString("\tbyteSize: number,\n")
 	file.WriteString("\toffset: number,\n")
 	file.WriteString("\tdescription: string,\n")
-	file.WriteString("\ttype: string\n")
+	file.WriteString(fmt.Sprintf("\ttype: %s\n", nameOfTypeEnum))
 	file.WriteString("};\n\n")
 
 	//TS Types - EventSpecification
@@ -82,14 +90,6 @@ func writeEventSpecsToTSFile(file *os.File) error {
 	file.WriteString("\tsenderID: number\n")
 	file.WriteString("\teventID: number\n")
 	file.WriteString("}\n\n")
-
-	//Print type enum
-	nameOfTypeEnum := "GoType"
-	typeEnum := FormatTSEnum(nameOfTypeEnum, internal.TypesAllowed, func(kind reflect.Kind) (string, string) {
-		fieldName := formatTSConstantName(kind.String(), "")
-		return fieldName, fmt.Sprintf("\"%s\"", kind)
-	})
-	file.WriteString(typeEnum)
 
 	var tsVarNamesAndIDs = make([]NameAndID, 0, len(specs))
 	//Content
