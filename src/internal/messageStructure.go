@@ -40,7 +40,7 @@ type ComputedStructure []MessageElementDescriptor
 // Returns the minimum total size of any message of this description as well as the full computed structure
 func ComputeStructure(messageName string, shortDescription ReferenceStructure) (uint32, ComputedStructure) {
 	var computedStructure ComputedStructure
-	var offset uint32 = 0
+	var offset uint32 = 8
 	var hasVariableSizeElement bool = false
 	var minimumTotalSize uint32 = 0
 
