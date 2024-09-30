@@ -64,6 +64,7 @@ func writeEventSpecsToTSFile(file *os.File) error {
 	file.WriteString("\tbyteSize: number,\n")
 	file.WriteString("\toffset: number,\n")
 	file.WriteString("\tdescription: string,\n")
+	file.WriteString("\tfieldName: string,\n")
 	file.WriteString(fmt.Sprintf("\ttype: %s\n", nameOfTypeEnum))
 	file.WriteString("};\n\n")
 
@@ -106,11 +107,13 @@ func writeEventSpecsToTSFile(file *os.File) error {
 		file.WriteString(fmt.Sprintf("\tpermissions: %s,\n", formatTSSendPermissions(spec.SendPermissions)))
 		file.WriteString(fmt.Sprintf("\texpectedMinSize: %d,\n", spec.ExpectedMinSize))
 		file.WriteString("\tstructure: [\n")
+		// Message Structure
 		for i, element := range spec.Structure {
 			file.WriteString("\t\t{\n")
 			file.WriteString(fmt.Sprintf("\t\t\tbyteSize: %d,\n", element.ByteSize))
 			file.WriteString(fmt.Sprintf("\t\t\toffset: %d,\n", element.Offset))
 			file.WriteString(fmt.Sprintf("\t\t\tdescription: \"%s\",\n", element.Description))
+			file.WriteString(fmt.Sprintf("\t\t\tfieldName: \"%s\",\n", element.FieldName))
 			file.WriteString(fmt.Sprintf("\t\t\ttype: %s\n", fmt.Sprintf("%s.%s", nameOfTypeEnum, formatTSConstantName(element.Kind.String(), ""))))
 			if i == len(spec.Structure)-1 {
 				file.WriteString("\t\t}\n")
