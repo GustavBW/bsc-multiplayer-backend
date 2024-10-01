@@ -41,13 +41,43 @@ func NewClient(id ClientID, IGN string, clientType OriginType, conn *websocket.C
 type Lobby struct {
 	ID               LobbyID
 	OwnerID          ClientID
+	ColonyID         uint32
 	Clients          map[ClientID]*Client // UserID to User mapping
 	Sync             sync.Mutex           // Protects access to the Users map
 	Closing          bool                 // Indicates if the lobby is in the process of closing
 	BroadcastMessage func(senderID ClientID, message []byte) []*Client
 	Encoding         meta.MessageEncoding
-	CloseQueue       chan<- *Lobby // Queue of lobbies that need to be closed
+	CloseQueue       chan<- *Lobby // Queue on which to register self for closing
 	//Maybe introduce message channel for messages to be sent to the lobby
+}
+
+func NewLobby(id LobbyID, ownerID ClientID, colonyID uint32, encoding meta.MessageEncoding, closeQueue chan<- *Lobby) *Lobby {
+	lobby := &Lobby{
+		ID:         id,
+		OwnerID:    ownerID,
+		ColonyID:   colonyID,
+		Clients:    make(map[ClientID]*Client),
+		Closing:    false,
+		Encoding:   encoding,
+		CloseQueue: closeQueue,
+	}
+
+	switch encoding {
+	case meta.MESSAGE_ENCODING_BINARY:
+		lobby.BroadcastMessage = func(senderID ClientID, message []byte) []*Client {
+			return BroadcastMessageBinary(lobby, senderID, message)
+		}
+	case meta.MESSAGE_ENCODING_BASE16:
+		lobby.BroadcastMessage = func(senderID ClientID, message []byte) []*Client {
+			return BroadcastMessageBase16(lobby, senderID, message)
+		}
+	case meta.MESSAGE_ENCODING_BASE64:
+		lobby.BroadcastMessage = func(senderID ClientID, message []byte) []*Client {
+			return BroadcastMessageBase64(lobby, senderID, message)
+		}
+	}
+
+	return lobby
 }
 
 type JoinError = int

@@ -13,7 +13,7 @@ type MessageEncoding string
 const (
 	MESSAGE_ENCODING_BASE16 MessageEncoding = "base16"
 	MESSAGE_ENCODING_BASE64 MessageEncoding = "base64"
-	MESSAGE_ENCODING_BINARY MessageEncoding = "none"
+	MESSAGE_ENCODING_BINARY MessageEncoding = "binary"
 )
 
 type RuntimeConfiguration struct {

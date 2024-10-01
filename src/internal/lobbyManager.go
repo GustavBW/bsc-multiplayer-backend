@@ -69,7 +69,7 @@ func (lm *LobbyManager) UnregisterLobby(lobby *Lobby) {
 }
 
 // Create a new lobby and assign an owner
-func (lm *LobbyManager) CreateLobby(ownerID ClientID, userSetEncoding meta.MessageEncoding) (*Lobby, error) {
+func (lm *LobbyManager) CreateLobby(ownerID ClientID, colonyID uint32, userSetEncoding meta.MessageEncoding) (*Lobby, error) {
 	lm.Sync.Lock()
 	defer lm.Sync.Unlock()
 
@@ -77,41 +77,23 @@ func (lm *LobbyManager) CreateLobby(ownerID ClientID, userSetEncoding meta.Messa
 		return nil, fmt.Errorf("[lob man] Lobby manager is not accepting new lobbies at this point")
 	}
 
+	for _, lobby := range lm.Lobbies {
+		if lobby.ColonyID == colonyID {
+			return lobby, nil
+		}
+	}
+
 	lobbyID := lm.nextLobbyID
 	lm.nextLobbyID++
-
-	lobby := &Lobby{
-		ID:         lobbyID,
-		OwnerID:    ownerID,
-		Clients:    make(map[ClientID]*Client),
-		Closing:    false,
-		CloseQueue: lm.CloseQueue,
-	}
-	lm.Lobbies[lobbyID] = lobby
 
 	var encodingToUse meta.MessageEncoding = userSetEncoding
 	//If no encoding is given, use whatever the lm is set to
 	if userSetEncoding == meta.MESSAGE_ENCODING_BINARY {
 		encodingToUse = lm.configuration.Encoding
 	}
-	// Strategy pattern with the added spice of partial application
-	switch encodingToUse {
-	case meta.MESSAGE_ENCODING_BINARY:
-		lobby.Encoding = meta.MESSAGE_ENCODING_BINARY
-		lobby.BroadcastMessage = func(senderID ClientID, message []byte) []*Client {
-			return BroadcastMessageBinary(lobby, senderID, message)
-		}
-	case meta.MESSAGE_ENCODING_BASE16:
-		lobby.Encoding = meta.MESSAGE_ENCODING_BASE16
-		lobby.BroadcastMessage = func(senderID ClientID, message []byte) []*Client {
-			return BroadcastMessageBase16(lobby, senderID, message)
-		}
-	case meta.MESSAGE_ENCODING_BASE64:
-		lobby.Encoding = meta.MESSAGE_ENCODING_BASE64
-		lobby.BroadcastMessage = func(senderID ClientID, message []byte) []*Client {
-			return BroadcastMessageBase64(lobby, senderID, message)
-		}
-	}
+
+	lobby := NewLobby(lobbyID, ownerID, colonyID, encodingToUse, lm.CloseQueue)
+	lm.Lobbies[lobbyID] = lobby
 
 	log.Println("[lob man] Lobby created, id:", lobbyID, " chosen broadcasting encoding: ", encodingToUse)
 	return lobby, nil
