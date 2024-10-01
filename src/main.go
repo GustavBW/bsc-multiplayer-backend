@@ -110,7 +110,7 @@ func createLobbyHandler(lobbyManager *internal.LobbyManager, w http.ResponseWrit
 		//log.Println("[] Error parsing ownerID: ", ownerIDErr)
 		w.Header().Set("Default-Debug-Header", "Error in ownerID query param: "+ownerIDErr.Error())
 		http.Error(w, "Error in ownerID", http.StatusBadRequest)
-		middleware.LogResultOfRequest(w, r)
+		middleware.LogResultOfRequest(w, r, http.StatusBadRequest)
 		return
 	}
 
@@ -119,7 +119,7 @@ func createLobbyHandler(lobbyManager *internal.LobbyManager, w http.ResponseWrit
 		//log.Println("[] Error parsing colonyID: ", colonyIDErr)
 		w.Header().Set("Default-Debug-Header", "Error in colonyID query param: "+colonyIDErr.Error())
 		http.Error(w, "Error in colonyID", http.StatusBadRequest)
-		middleware.LogResultOfRequest(w, r)
+		middleware.LogResultOfRequest(w, r, http.StatusBadRequest)
 		return
 	}
 
@@ -138,13 +138,13 @@ func createLobbyHandler(lobbyManager *internal.LobbyManager, w http.ResponseWrit
 		//log.Println("Error creating lobby: ", err)
 		w.Header().Set("Default-Debug-Header", "Error creating lobby: "+err.Error())
 		http.Error(w, "Error creating lobby", http.StatusInternalServerError)
-		middleware.LogResultOfRequest(w, r)
+		middleware.LogResultOfRequest(w, r, http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
 	// Manual JSON encoding. Not ideal, better to use json.Marshal
 	w.Write([]byte(fmt.Sprintf("{\"id\": %s}", strconv.FormatUint(uint64(lobby.ID), 10))))
-	middleware.LogResultOfRequest(w, r)
+	middleware.LogResultOfRequest(w, r, http.StatusOK)
 }
 
 func webSocketConnectionRequestHandler(lobbyManager *internal.LobbyManager, w http.ResponseWriter, r *http.Request) {
@@ -155,7 +155,7 @@ func webSocketConnectionRequestHandler(lobbyManager *internal.LobbyManager, w ht
 	if IGN == "" {
 		w.Header().Set("Default-Debug-Header", "IGN query param missing")
 		http.Error(w, "IGN not provided", http.StatusBadRequest)
-		middleware.LogResultOfRequest(w, r)
+		middleware.LogResultOfRequest(w, r, http.StatusBadRequest)
 		return
 	}
 
@@ -164,7 +164,7 @@ func webSocketConnectionRequestHandler(lobbyManager *internal.LobbyManager, w ht
 		//log.Printf("Error in lobbyID: %s", lobbyIDErr)
 		w.Header().Set("Default-Debug-Header", fmt.Sprintf("Error in lobbyID: %s", lobbyIDErr))
 		http.Error(w, fmt.Sprintf("Error in lobbyID: %s", lobbyIDErr.Error()), http.StatusBadRequest)
-		middleware.LogResultOfRequest(w, r)
+		middleware.LogResultOfRequest(w, r, http.StatusBadRequest)
 		return
 	}
 
@@ -174,7 +174,7 @@ func webSocketConnectionRequestHandler(lobbyManager *internal.LobbyManager, w ht
 		//log.Printf("Error in userID: %s", userIDErr.Error())
 		w.Header().Set("Default-Debug-Header", fmt.Sprintf("Error in clientID: %s", userIDErr))
 		http.Error(w, fmt.Sprintf("Error in clientID: %s", userIDErr.Error()), http.StatusBadRequest)
-		middleware.LogResultOfRequest(w, r)
+		middleware.LogResultOfRequest(w, r, http.StatusBadRequest)
 		return
 	}
 
@@ -184,15 +184,15 @@ func webSocketConnectionRequestHandler(lobbyManager *internal.LobbyManager, w ht
 		switch err.Type {
 		case internal.JoinErrorNotFound:
 			http.Error(w, "Lobby not found", http.StatusNotFound)
-			middleware.LogResultOfRequest(w, r)
+			middleware.LogResultOfRequest(w, r, http.StatusNotFound)
 			return
 		case internal.JoinErrorAlreadyInLobby:
 			http.Error(w, "User already in lobby", http.StatusConflict)
-			middleware.LogResultOfRequest(w, r)
+			middleware.LogResultOfRequest(w, r, http.StatusConflict)
 			return
 		case internal.JoinErrorClosing:
 			http.Error(w, "Lobby is closing", http.StatusGone)
-			middleware.LogResultOfRequest(w, r)
+			middleware.LogResultOfRequest(w, r, http.StatusGone)
 			return
 		}
 	}
@@ -201,7 +201,7 @@ func webSocketConnectionRequestHandler(lobbyManager *internal.LobbyManager, w ht
 	if err != nil {
 		log.Printf("Failed to upgrade connection: %v", err)
 		http.Error(w, "Failed to upgrade connection", http.StatusInternalServerError)
-		middleware.LogResultOfRequest(w, r)
+		middleware.LogResultOfRequest(w, r, http.StatusInternalServerError)
 		return
 	}
 
@@ -220,5 +220,5 @@ func webSocketConnectionRequestHandler(lobbyManager *internal.LobbyManager, w ht
 		w.Header().Set("Default-Debug-Header", joinError.Error())
 		w.WriteHeader(http.StatusInternalServerError)
 	}
-	middleware.LogResultOfRequest(w, r)
+	middleware.LogResultOfRequest(w, r, http.StatusOK)
 }
