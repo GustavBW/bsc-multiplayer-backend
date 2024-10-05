@@ -33,6 +33,13 @@ func CreateLobbyManager(runtimeConfiguration *meta.RuntimeConfiguration) *LobbyM
 	return lm
 }
 
+func (lm *LobbyManager) GetLobbyCount() int {
+	lm.Sync.Lock()
+	defer lm.Sync.Unlock()
+
+	return len(lm.Lobbies)
+}
+
 // Process the closure of lobbies queued for deletion
 func (lm *LobbyManager) processClosures() {
 	for lobby := range lm.CloseQueue {

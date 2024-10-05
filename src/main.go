@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -58,6 +59,11 @@ func awaitSysShutdown() {
 	log.Printf("[server] Received shutdown signal: %v", sig)
 }
 
+type HealthCheckResponseDTO struct {
+	Status     bool   `json:"status"`
+	LobbyCount uint32 `json:"lobbyCount"`
+}
+
 func main() {
 
 	if eventInitErr := internal.InitEventSpecifications(); eventInitErr != nil {
@@ -87,6 +93,23 @@ func main() {
 		createLobbyHandler(lobbyManager, w, r)
 	})
 
+	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
+		lobbyCount := lobbyManager.GetLobbyCount()
+		response := HealthCheckResponseDTO{
+			Status:     true,
+			LobbyCount: uint32(lobbyCount),
+		}
+		w.Header().Set("Content-Type", "application/json")
+		bytes, err := json.Marshal(response)
+		if err != nil {
+			http.Error(w, "Failed to marshal response", http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write(bytes)
+
+		middleware.LogResultOfRequest(w, r, http.StatusOK)
+	})
 	go startServer(mux)
 
 	awaitSysShutdown() //Continues after shutdown signal
