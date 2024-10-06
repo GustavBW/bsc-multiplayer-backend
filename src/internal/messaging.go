@@ -69,8 +69,6 @@ func ExtractClientIDAndMessageID(msg []byte) (ClientID, MessageID, []byte, error
 //
 // # DOES NOT Check whether or not the sender is allowed to broadcast that message
 //
-// Locks lobby (indrectly)
-//
 // Returns the clients that could not be reached (if any)
 func BroadcastMessageBinary(lobby *Lobby, senderID ClientID, message []byte) []*Client {
 	return broadcast(lobby, senderID, message, websocket.BinaryMessage)
@@ -81,8 +79,6 @@ func BroadcastMessageBinary(lobby *Lobby, senderID ClientID, message []byte) []*
 // # Expects the message to be binary and pre-pended with the required clientID and messageID
 //
 // # DOES NOT Check whether or not the sender is allowed to broadcast that message
-//
-// Locks lobby (indrectly)
 //
 // Returns the clients that could not be reached (if any)
 func BroadcastMessageBase16(lobby *Lobby, senderID ClientID, message []byte) []*Client {
@@ -96,24 +92,17 @@ func BroadcastMessageBase16(lobby *Lobby, senderID ClientID, message []byte) []*
 //
 // # DOES NOT Check whether or not the sender is allowed to broadcast that message
 //
-// Locks lobby (indrectly)
-//
 // Returns the clients that could not be reached (if any)
 func BroadcastMessageBase64(lobby *Lobby, senderID ClientID, message []byte) []*Client {
 	message = util.EncodeBase64(message)
 	return broadcast(lobby, senderID, message, websocket.TextMessage)
 }
 
-// Locking
-//
 // Returns the clients that could not be reached (if any)
 func broadcast(lobby *Lobby, senderID ClientID, message []byte, messageType int) []*Client {
-
-	lobby.Sync.Lock()
-	defer lobby.Sync.Unlock()
 	var unreachableClients []*Client
 
-	for userID, user := range lobby.Clients {
+	lobby.Clients.Range(func(userID ClientID, user *Client) bool {
 		if userID != senderID {
 			err := user.Conn.WriteMessage(messageType, message)
 			if err != nil {
@@ -121,6 +110,7 @@ func broadcast(lobby *Lobby, senderID ClientID, message []byte, messageType int)
 				unreachableClients = append(unreachableClients, user)
 			}
 		}
-	}
+		return true
+	})
 	return unreachableClients
 }

@@ -12,7 +12,7 @@ import (
 
 // LobbyManager manages all the lobbies
 type LobbyManager struct {
-	Lobbies           map[LobbyID]*Lobby
+	Lobbies           util.ConcurrentTypedMap[LobbyID, *Lobby]
 	nextLobbyID       LobbyID
 	Sync              sync.Mutex
 	acceptsNewLobbies bool
@@ -22,7 +22,7 @@ type LobbyManager struct {
 
 func CreateLobbyManager(runtimeConfiguration *meta.RuntimeConfiguration) *LobbyManager {
 	lm := &LobbyManager{
-		Lobbies:           make(map[LobbyID]*Lobby),
+		Lobbies:           util.ConcurrentTypedMap[LobbyID, *Lobby]{},
 		nextLobbyID:       0,
 		acceptsNewLobbies: true,
 		CloseQueue:        make(chan *Lobby, 10), // A queue to handle closing lobbies
@@ -34,10 +34,13 @@ func CreateLobbyManager(runtimeConfiguration *meta.RuntimeConfiguration) *LobbyM
 }
 
 func (lm *LobbyManager) GetLobbyCount() int {
-	lm.Sync.Lock()
-	defer lm.Sync.Unlock()
+	var count = 0
+	lm.Lobbies.Range(func(key LobbyID, value *Lobby) bool {
+		count++
+		return true
+	})
 
-	return len(lm.Lobbies)
+	return count
 }
 
 // Process the closure of lobbies queued for deletion
@@ -53,13 +56,14 @@ func (lm *LobbyManager) ShutdownLobbyManager() {
 	lm.acceptsNewLobbies = false
 	defer lm.Sync.Unlock()
 
-	log.Printf("[lob man] Shutting down %d lobbies", len(lm.Lobbies))
+	log.Printf("[lob man] Shutting down %d lobbies", lm.GetLobbyCount())
 
 	// Close all lobbies
-	for _, lobby := range lm.Lobbies {
-		lobby.BroadcastMessage(SERVER_ID, PrepareServerMessage(SERVER_CLOSING_EVENT))
-		lobby.close()
-	}
+	lm.Lobbies.Range(func(key LobbyID, value *Lobby) bool {
+		value.BroadcastMessage(SERVER_ID, PrepareServerMessage(SERVER_CLOSING_EVENT))
+		value.close()
+		return true
+	})
 
 	//Dunno if this should be done like this
 	close(lm.CloseQueue)
@@ -67,12 +71,12 @@ func (lm *LobbyManager) ShutdownLobbyManager() {
 
 // Unregister a lobby and clean it up
 func (lm *LobbyManager) UnregisterLobby(lobby *Lobby) {
-	lm.Sync.Lock()
-	defer lm.Sync.Unlock()
 
-	delete(lm.Lobbies, lobby.ID)
-	lobby.close()
-	log.Println("Lobby removed, id:", lobby.ID)
+	lobby, exists := lm.Lobbies.LoadAndDelete(lobby.ID)
+	if exists {
+		lobby.close()
+		log.Println("Lobby removed, id:", lobby.ID)
+	}
 }
 
 // Create a new lobby and assign an owner
@@ -84,10 +88,17 @@ func (lm *LobbyManager) CreateLobby(ownerID ClientID, colonyID uint32, userSetEn
 		return nil, fmt.Errorf("[lob man] Lobby manager is not accepting new lobbies at this point")
 	}
 
-	for _, lobby := range lm.Lobbies {
-		if lobby.ColonyID == colonyID {
-			return lobby, nil
+	var existingLobby *Lobby
+	lm.Lobbies.Range(func(key LobbyID, value *Lobby) bool {
+		if value.ColonyID == colonyID {
+			existingLobby = value
+			return false
 		}
+		return true
+	})
+
+	if existingLobby != nil {
+		return existingLobby, nil
 	}
 
 	lobbyID := lm.nextLobbyID
@@ -100,14 +111,14 @@ func (lm *LobbyManager) CreateLobby(ownerID ClientID, colonyID uint32, userSetEn
 	}
 
 	lobby := NewLobby(lobbyID, ownerID, colonyID, encodingToUse, lm.CloseQueue)
-	lm.Lobbies[lobbyID] = lobby
+	lm.Lobbies.Store(lobbyID, lobby)
 
 	log.Println("[lob man] Lobby created, id:", lobbyID, " chosen broadcasting encoding: ", encodingToUse)
 	return lobby, nil
 }
 
 func (lm *LobbyManager) IsJoinPossible(lobbyID LobbyID, clientID ClientID) *LobbyJoinError {
-	lobby, exists := lm.Lobbies[lobbyID]
+	lobby, exists := lm.Lobbies.Load(lobbyID)
 	if !exists {
 		return &LobbyJoinError{Reason: "Lobby does not exist", Type: JoinErrorNotFound, LobbyID: lobbyID}
 	}
@@ -115,11 +126,11 @@ func (lm *LobbyManager) IsJoinPossible(lobbyID LobbyID, clientID ClientID) *Lobb
 	lobby.Sync.Lock()
 	defer lobby.Sync.Unlock()
 
-	if lobby.Closing {
+	if lobby.Closing.Load() {
 		return &LobbyJoinError{Reason: "Lobby is closing", Type: JoinErrorClosing, LobbyID: lobbyID}
 	}
 
-	if _, exists := lobby.Clients[clientID]; exists {
+	if _, exists := lobby.Clients.Load(clientID); exists {
 		//IMPOSTER!
 		return &LobbyJoinError{Reason: "User is already in lobby", Type: JoinErrorAlreadyInLobby, LobbyID: lobbyID}
 	}
@@ -130,7 +141,7 @@ func (lm *LobbyManager) IsJoinPossible(lobbyID LobbyID, clientID ClientID) *Lobb
 func (lm *LobbyManager) JoinLobby(lobbyID LobbyID, clientID ClientID, clientIGN string, conn *websocket.Conn) *LobbyJoinError {
 	lm.Sync.Lock()
 
-	lobby, exists := lm.Lobbies[lobbyID]
+	lobby, exists := lm.Lobbies.Load(lobbyID)
 	if !exists {
 		lm.Sync.Unlock()
 		return &LobbyJoinError{Reason: "Lobby does not exist", Type: JoinErrorNotFound, LobbyID: lobbyID}
@@ -140,17 +151,17 @@ func (lm *LobbyManager) JoinLobby(lobbyID LobbyID, clientID ClientID, clientIGN 
 	lobby.Sync.Lock()
 	defer lobby.Sync.Unlock()
 
-	if lobby.Closing {
+	if lobby.Closing.Load() {
 		return &LobbyJoinError{Reason: "Lobby is closing", Type: JoinErrorClosing, LobbyID: lobbyID}
 	}
 
-	if _, exists := lobby.Clients[clientID]; exists {
+	if _, exists := lobby.Clients.Load(clientID); exists {
 		//IMPOSTER!
 		return &LobbyJoinError{Reason: "User is already in lobby", Type: JoinErrorAlreadyInLobby, LobbyID: lobbyID}
 	}
 
 	user := NewClient(clientID, clientIGN, util.Ternary(lobby.OwnerID == clientID, ORIGIN_TYPE_OWNER, ORIGIN_TYPE_GUEST), conn, lobby.Encoding)
-	lobby.Clients[clientID] = user
+	lobby.Clients.Store(clientID, user)
 	// Handle the user's connection
 	go lobby.handleConnection(user)
 

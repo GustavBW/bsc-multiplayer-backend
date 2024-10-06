@@ -195,7 +195,7 @@ var ENTER_LOCATION_EVENT = NewSpecification(1001, "EnterLocation", OWNER_ONLY, [
 
 var PLAYER_MOVE_EVENT = NewSpecification(1002, "PlayerMove", OWNER_AND_GUESTS, []ShortElementDescriptor{
 	NewElementDescriptor("Player ID", "playerID", reflect.Uint32),
-	NewElementDescriptor("Location ID", "locationID", reflect.Uint32),
+	NewElementDescriptor("Location ID", "locationID", reflect.Uint32), //Referenced through array index in client.go
 }, NO_HANDLER_YET)
 
 // 1000-1999: Colony Events

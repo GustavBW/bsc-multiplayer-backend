@@ -1,50 +1,27 @@
 package internal
 
 import (
-	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"log"
 	"sync"
+	"sync/atomic"
 
 	"github.com/GustavBW/bsc-multiplayer-backend/src/meta"
+	"github.com/GustavBW/bsc-multiplayer-backend/src/util"
 	"github.com/gorilla/websocket"
 )
 
-type ClientID = uint32
 type LobbyID = uint32
-
-// Client represents a user connected to a lobby
-type Client struct {
-	ID       ClientID
-	IDBytes  []byte
-	IGN      string
-	Type     OriginType
-	Encoding meta.MessageEncoding
-	Conn     *websocket.Conn
-}
-
-func NewClient(id ClientID, IGN string, clientType OriginType, conn *websocket.Conn, encoding meta.MessageEncoding) *Client {
-	userIDBytes := make([]byte, 4)
-	binary.BigEndian.PutUint32(userIDBytes, id)
-	return &Client{
-		ID:       id,
-		IDBytes:  userIDBytes,
-		IGN:      IGN,
-		Type:     clientType,
-		Conn:     conn,
-		Encoding: encoding,
-	}
-}
 
 // Lobby represents a lobby with a set of users
 type Lobby struct {
 	ID               LobbyID
 	OwnerID          ClientID
 	ColonyID         uint32
-	Clients          map[ClientID]*Client // UserID to User mapping
-	Sync             sync.Mutex           // Protects access to the Users map
-	Closing          bool                 // Indicates if the lobby is in the process of closing
+	Clients          util.ConcurrentTypedMap[ClientID, *Client] // UserID to User mapping
+	Sync             sync.Mutex                                 // Protects access to the Users map
+	Closing          atomic.Bool                                // Indicates if the lobby is in the process of closing
 	BroadcastMessage func(senderID ClientID, message []byte) []*Client
 	Encoding         meta.MessageEncoding
 	CloseQueue       chan<- *Lobby // Queue on which to register self for closing
@@ -56,8 +33,8 @@ func NewLobby(id LobbyID, ownerID ClientID, colonyID uint32, encoding meta.Messa
 		ID:         id,
 		OwnerID:    ownerID,
 		ColonyID:   colonyID,
-		Clients:    make(map[ClientID]*Client),
-		Closing:    false,
+		Clients:    util.ConcurrentTypedMap[ClientID, *Client]{},
+		Closing:    atomic.Bool{},
 		Encoding:   encoding,
 		CloseQueue: closeQueue,
 	}
@@ -145,7 +122,7 @@ func (lobby *Lobby) handleConnection(client *Client) {
 			}
 		} else if dataType != websocket.BinaryMessage {
 			log.Printf("[lobby] Invalid message type from user %d", client.ID)
-			if cantSendDebugInfo := SendDebugInfoToClient(client, 404, "Invalid message type"); cantSendDebugInfo != nil {
+			if cantSendDebugInfo := SendDebugInfoToClient(client, 404, "Invalid message type: "+fmt.Sprint(dataType)); cantSendDebugInfo != nil {
 				log.Printf("[lobby] Error sending debug info to user %d: %v", client.ID, cantSendDebugInfo)
 				break
 			}
@@ -183,7 +160,7 @@ func (lobby *Lobby) handleConnection(client *Client) {
 // Example processClientMessage for handling the extracted data
 func (lobby *Lobby) processClientMessage(clientID ClientID, messageID MessageID, data []byte) error {
 	// Handle message based on messageID
-	client, clientExists := lobby.Clients[clientID]
+	client, clientExists := lobby.Clients.Load(clientID)
 	if !clientExists {
 		log.Printf("[lobby] User %d not found in lobby %d", clientID, lobby.ID)
 		return fmt.Errorf("user %d not found in lobby %d", clientID, lobby.ID)
@@ -204,6 +181,7 @@ func (lobby *Lobby) processClientMessage(clientID ClientID, messageID MessageID,
 		log.Printf("[lobby] Error handling message ID %d from clientID %d: %v", messageID, clientID, handlingErr)
 		return fmt.Errorf("Error handling message ID %d from clientID %d: %v", messageID, clientID, handlingErr)
 	}
+	go client.State.UpdateAny(messageID, data)
 
 	return nil
 }
@@ -213,7 +191,7 @@ func (lobby *Lobby) handleDisconnect(user *Client) {
 	lobby.Sync.Lock()
 	defer lobby.Sync.Unlock()
 
-	delete(lobby.Clients, user.ID)
+	lobby.Clients.Delete(user.ID)
 	user.Conn.Close()
 
 	msg := PrepareServerMessage(PLAYER_LEFT_EVENT)
@@ -232,15 +210,21 @@ func (lobby *Lobby) handleDisconnect(user *Client) {
 // close the lobby and clean up resources. Shunts all client connections
 //
 // # Adds lobby to lobby manager closing channel
-//
-// partially locks
 func (lobby *Lobby) close() {
 	lobby.BroadcastMessage(SERVER_ID, PrepareServerMessage(LOBBY_CLOSING_EVENT))
-	lobby.Sync.Lock()
-	defer lobby.Sync.Unlock()
-	lobby.Closing = true
-	for _, user := range lobby.Clients {
-		user.Conn.Close()
-	}
+	lobby.Closing.Store(true)
+	lobby.Clients.Range(func(key ClientID, value *Client) bool {
+		value.Conn.Close()
+		return true
+	})
 	lobby.CloseQueue <- lobby
+}
+
+func (lobby *Lobby) ClientCount() int {
+	var count = 0
+	lobby.Clients.Range(func(key ClientID, value *Client) bool {
+		count++
+		return true
+	})
+	return count
 }
