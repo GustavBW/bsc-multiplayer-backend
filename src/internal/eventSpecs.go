@@ -267,6 +267,10 @@ func InitEventSpecifications() error {
 	if err := loadEventsIntoAllEvents(MINIGAME_INITIATION_EVENTS); err != nil {
 		return err
 	}
+	if err := loadEventsIntoAllEvents(ALL_ASTEROIDS_EVENTS); err != nil {
+		return err
+	}
+
 	return nil
 }
 
