@@ -28,23 +28,24 @@ var SymbolSets = symbols{
 }
 
 func NewCharCodePool(initialSize uint32, charCodeLength uint32, symbols SymbolSet) (*CharCodePool, error) {
-	var possiblePermutations = math.Pow(26, float64(charCodeLength)) // 26 lowercase and 26 uppercase letters
+	var numUniqueSymbols = len(symbols.Lowercase) + len(symbols.Uppercase)
+	var possiblePermutations = math.Pow(float64(numUniqueSymbols), float64(charCodeLength))
 	if possiblePermutations < float64(initialSize) {
 		return nil, fmt.Errorf("initialSize %d is larger than the number of possible permutations %f", initialSize, possiblePermutations)
 	}
 
-	charPool := newCharPool(symbols)
+	charPool := NewCharPool(symbols)
 	codePool := &CharCodePool{
 		codeLength: charCodeLength,
 		charPool:   charPool,
-		codePool:   make([]PoolEntry[[]rune], 0, initialSize),
+		codePool:   make([]PoolEntry[[]rune], initialSize),
 	}
 	for i := uint32(0); i < initialSize; i++ {
 		code := make([]rune, charCodeLength)
 		for j := 0; j < len(code); j++ {
 			code[j] = charPool.GetNextChar()
-			codePool.Reintroduce(NewPoolEntry(code, codePool))
 		}
+		codePool.codePool[i] = *NewPoolEntry(code, codePool)
 	}
 
 	return codePool, nil
@@ -101,7 +102,7 @@ func (ccp *CharCodePool) Reintroduce(pe *PoolEntry[[]rune]) {
 	ccp.codePool = append(ccp.codePool, *pe)
 }
 
-func newCharPool(symbolsSet SymbolSet) *CharPool {
+func NewCharPool(symbolsSet SymbolSet) *CharPool {
 	//Allocate shared symbols array
 	var symbols = make([]rune, len(symbolsSet.Lowercase)+len(symbolsSet.Uppercase))
 
@@ -121,6 +122,10 @@ func newCharPool(symbolsSet SymbolSet) *CharPool {
 }
 
 // Threadsafe
+//
+// Actually not a pool as known from the Pool interface, but a pool of characters
+// that assures that any character drawn, is random, and that all characters are
+// drawn before any one character is drawn again.
 type CharPool struct {
 	sync.Mutex
 	indexPointer uint32
