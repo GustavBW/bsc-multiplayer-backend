@@ -19,6 +19,9 @@ type ShortElementDescriptor struct {
 	Kind        reflect.Kind //We do not intend to encode structs, so this is fine
 }
 
+// description is a human readable description of the element, appears as a comment in generated code
+//
+// fieldName is the name of the corresponding field in some in some type repressenting this message
 func NewElementDescriptor(description string, fieldName string, kind reflect.Kind) ShortElementDescriptor {
 	return ShortElementDescriptor{
 		Description: description,

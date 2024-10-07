@@ -139,17 +139,11 @@ func (lm *LobbyManager) IsJoinPossible(lobbyID LobbyID, clientID ClientID) *Lobb
 
 // JoinLobby allows a user to join a specific lobby
 func (lm *LobbyManager) JoinLobby(lobbyID LobbyID, clientID ClientID, clientIGN string, conn *websocket.Conn) *LobbyJoinError {
-	lm.Sync.Lock()
-
 	lobby, exists := lm.Lobbies.Load(lobbyID)
 	if !exists {
 		lm.Sync.Unlock()
 		return &LobbyJoinError{Reason: "Lobby does not exist", Type: JoinErrorNotFound, LobbyID: lobbyID}
 	}
-	lm.Sync.Unlock()
-
-	lobby.Sync.Lock()
-	defer lobby.Sync.Unlock()
 
 	if lobby.Closing.Load() {
 		return &LobbyJoinError{Reason: "Lobby is closing", Type: JoinErrorClosing, LobbyID: lobbyID}
@@ -161,6 +155,13 @@ func (lm *LobbyManager) JoinLobby(lobbyID LobbyID, clientID ClientID, clientIGN 
 	}
 
 	user := NewClient(clientID, clientIGN, util.Ternary(lobby.OwnerID == clientID, ORIGIN_TYPE_OWNER, ORIGIN_TYPE_GUEST), conn, lobby.Encoding)
+
+	userJoinedMsg := PrepareServerMessage(PLAYER_JOINED_EVENT)
+	userJoinedMsg = append(userJoinedMsg, user.IDBytes...)
+	userJoinedMsg = append(userJoinedMsg, []byte(user.IGN)...)
+	//Broadcasting before we add the client to the lobbies client map
+	lobby.BroadcastMessage(SERVER_ID, userJoinedMsg)
+
 	lobby.Clients.Store(clientID, user)
 	// Handle the user's connection
 	go lobby.handleConnection(user)

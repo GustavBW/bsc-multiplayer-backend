@@ -99,9 +99,13 @@ func BroadcastMessageBase64(lobby *Lobby, senderID ClientID, message []byte) []*
 }
 
 // Returns the clients that could not be reached (if any)
+//
+// Prepends senderID
 func broadcast(lobby *Lobby, senderID ClientID, message []byte, messageType int) []*Client {
 	var unreachableClients []*Client
 
+	wSenderID := util.BytesOfUint32(uint32(senderID))
+	message = append(wSenderID, message...)
 	lobby.Clients.Range(func(userID ClientID, user *Client) bool {
 		if userID != senderID {
 			err := user.Conn.WriteMessage(messageType, message)

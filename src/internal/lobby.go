@@ -16,12 +16,13 @@ type LobbyID = uint32
 
 // Lobby represents a lobby with a set of users
 type Lobby struct {
-	ID               LobbyID
-	OwnerID          ClientID
-	ColonyID         uint32
-	Clients          util.ConcurrentTypedMap[ClientID, *Client] // UserID to User mapping
-	Sync             sync.Mutex                                 // Protects access to the Users map
-	Closing          atomic.Bool                                // Indicates if the lobby is in the process of closing
+	ID       LobbyID
+	OwnerID  ClientID
+	ColonyID uint32
+	Clients  util.ConcurrentTypedMap[ClientID, *Client] // UserID to User mapping
+	Sync     sync.Mutex                                 // Protects access to the Users map
+	Closing  atomic.Bool                                // Indicates if the lobby is in the process of closing
+	//Prepends senderID
 	BroadcastMessage func(senderID ClientID, message []byte) []*Client
 	Encoding         meta.MessageEncoding
 	CloseQueue       chan<- *Lobby // Queue on which to register self for closing
@@ -158,30 +159,34 @@ func (lobby *Lobby) handleConnection(client *Client) {
 }
 
 // Example processClientMessage for handling the extracted data
-func (lobby *Lobby) processClientMessage(clientID ClientID, messageID MessageID, data []byte) error {
+func (lobby *Lobby) processClientMessage(clientID ClientID, messageID MessageID, remainder []byte) error {
 	// Handle message based on messageID
 	client, clientExists := lobby.Clients.Load(clientID)
 	if !clientExists {
+		SendDebugInfoToClient(client, 401, fmt.Sprintf("Unauthorized: client %d not found in lobby %d", clientID, lobby.ID))
 		log.Printf("[lobby] User %d not found in lobby %d", clientID, lobby.ID)
 		return fmt.Errorf("user %d not found in lobby %d", clientID, lobby.ID)
 	}
 
 	spec, exists := ALL_EVENTS[MessageID(messageID)]
 	if !exists {
+		SendDebugInfoToClient(client, 404, fmt.Sprintf("No such message: client %d send message id %d, but that does not exist", clientID, messageID))
 		log.Printf("[lobby] Unknown message ID %d from clientID %d", messageID, clientID)
 		return fmt.Errorf("unknown message ID %d from clientID %d", messageID, clientID)
 	}
 
 	if !spec.SendPermissions[client.Type] {
+		SendDebugInfoToClient(client, 401, fmt.Sprintf("Unauthorized: client %d is not allowed to send messages of id %d", clientID, messageID))
 		log.Printf("[lobby] User %d not allowed to send message ID %d", clientID, messageID)
 		return fmt.Errorf("user %d not allowed to send message ID %d", clientID, messageID)
 	}
 
-	if handlingErr := spec.Handler(lobby, client, messageID, data); handlingErr != nil {
+	if handlingErr := spec.Handler(lobby, client, messageID, remainder); handlingErr != nil {
+		SendDebugInfoToClient(client, 500, "Error handling message: "+handlingErr.Error())
 		log.Printf("[lobby] Error handling message ID %d from clientID %d: %v", messageID, clientID, handlingErr)
 		return fmt.Errorf("Error handling message ID %d from clientID %d: %v", messageID, clientID, handlingErr)
 	}
-	go client.State.UpdateAny(messageID, data)
+	go client.State.UpdateAny(messageID, remainder)
 
 	return nil
 }

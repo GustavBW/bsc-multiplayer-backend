@@ -16,6 +16,7 @@ const (
 	ORIGIN_TYPE_SERVER OriginType = "server"
 )
 
+// Lobby, Client, MessageID, Message Data
 type AbstractEventHandler = func(*Lobby, *Client, MessageID, []byte) error
 
 var NO_HANDLER_YET AbstractEventHandler = func(lobby *Lobby, client *Client, messageID MessageID, data []byte) error {
@@ -99,11 +100,7 @@ var OWNER_AND_GUESTS = map[OriginType]bool{
 var DEBUG_EVENT = NewSpecification(0, "DebugInfo", ALL_ALLOWED, []ShortElementDescriptor{
 	NewElementDescriptor("HTTP Code (if applicable)", "code", reflect.Uint32),
 	NewElementDescriptor("Debug message", "message", reflect.String),
-}, func(lobby *Lobby, client *Client, messageID MessageID, data []byte) error {
-	//TODO: This kinda allows all users to debug onto the server, which is a bit of a security risk. Remove it after development.
-	log.Printf("[debug event] %s", fmt.Sprintf("Client id %d says: %s", client.ID, string(data)))
-	return nil
-})
+}, Handlers.OnDebugMessageRecieved)
 
 // Full range: 0 to 4,294,967,295
 //
@@ -133,30 +130,6 @@ var PLAYER_JOINED_EVENT = NewSpecification(1, "PlayerJoined", SERVER_ONLY, []Sho
 // 0b -> 3b: uint32: Player ID
 //
 // 4b -> +Nb: utf8 string: Player IGN
-var PLAYER_JOIN_ATTEMPT_EVENT = NewSpecification(2, "PlayerJoinAttempt", SERVER_ONLY, []ShortElementDescriptor{
-	NewElementDescriptor("Player ID", "id", reflect.Uint32),
-	NewElementDescriptor("Player IGN", "ign", reflect.String),
-}, INTENTIONAL_IGNORE_HANDLER)
-
-// 0b -> 3b: uint32: Player ID
-//
-// 4b -> +Nb: utf8 string: Player IGN
-var PLAYER_JOIN_ACCEPTED_EVENT = NewSpecification(3, "PlayerJoinAccepted", OWNER_ONLY, []ShortElementDescriptor{
-	NewElementDescriptor("Player ID", "id", reflect.Uint32),
-	NewElementDescriptor("Player IGN", "ign", reflect.String),
-}, NO_HANDLER_YET)
-
-// 0b -> 3b: uint32: Player ID
-//
-// 4b -> +Nb: utf8 string: Player IGN
-var PLAYER_JOIN_DECLINED_EVENT = NewSpecification(4, "PlayerJoinDeclined", OWNER_ONLY, []ShortElementDescriptor{
-	NewElementDescriptor("Player ID", "id", reflect.Uint32),
-	NewElementDescriptor("Player IGN", "ign", reflect.String),
-}, NO_HANDLER_YET)
-
-// 0b -> 3b: uint32: Player ID
-//
-// 4b -> +Nb: utf8 string: Player IGN
 var PLAYER_LEFT_EVENT = NewSpecification(5, "PlayerLeft", SERVER_ONLY, []ShortElementDescriptor{
 	NewElementDescriptor("Player ID", "id", reflect.Uint32),
 	NewElementDescriptor("Player IGN", "ign", reflect.String),
@@ -171,32 +144,29 @@ var LOBBY_CLOSING_EVENT = NewSpecification(6, "LobbyClosing", SERVER_ONLY, REFER
 var PLAYER_LEAVING_EVENT = NewSpecification(7, "PlayerLeaving", OWNER_AND_GUESTS, []ShortElementDescriptor{
 	NewElementDescriptor("Player ID", "id", reflect.Uint32),
 	NewElementDescriptor("Player IGN", "ign", reflect.String),
-}, NO_HANDLER_YET)
+}, Handlers.OnClientDisconnect)
 
 // No additional data
 var SERVER_CLOSING_EVENT = NewSpecification(8, "ServerClosing", SERVER_ONLY, REFERENCE_STRUCTURE_EMPTY, INTENTIONAL_IGNORE_HANDLER)
 
 // 1-999: Lobby Management
 var LOBBY_MANAGEMENT_EVENTS = map[MessageID]*EventSpecification{
-	PLAYER_JOINED_EVENT.ID:        PLAYER_JOINED_EVENT,
-	PLAYER_JOIN_ATTEMPT_EVENT.ID:  PLAYER_JOIN_ATTEMPT_EVENT,
-	PLAYER_JOIN_ACCEPTED_EVENT.ID: PLAYER_JOIN_ACCEPTED_EVENT,
-	PLAYER_JOIN_DECLINED_EVENT.ID: PLAYER_JOIN_DECLINED_EVENT,
-	PLAYER_LEFT_EVENT.ID:          PLAYER_LEFT_EVENT,
-	LOBBY_CLOSING_EVENT.ID:        LOBBY_CLOSING_EVENT,
-	PLAYER_LEAVING_EVENT.ID:       PLAYER_LEAVING_EVENT,
-	SERVER_CLOSING_EVENT.ID:       SERVER_CLOSING_EVENT,
+	PLAYER_JOINED_EVENT.ID:  PLAYER_JOINED_EVENT,
+	PLAYER_LEFT_EVENT.ID:    PLAYER_LEFT_EVENT,
+	LOBBY_CLOSING_EVENT.ID:  LOBBY_CLOSING_EVENT,
+	PLAYER_LEAVING_EVENT.ID: PLAYER_LEAVING_EVENT,
+	SERVER_CLOSING_EVENT.ID: SERVER_CLOSING_EVENT,
 }
 
 // 0b -> 3b: uint32: Location ID
 var ENTER_LOCATION_EVENT = NewSpecification(1001, "EnterLocation", OWNER_ONLY, []ShortElementDescriptor{
 	NewElementDescriptor("Location ID", "id", reflect.Uint32),
-}, NO_HANDLER_YET)
+}, Handlers.NoCheckReplicate)
 
 var PLAYER_MOVE_EVENT = NewSpecification(1002, "PlayerMove", OWNER_AND_GUESTS, []ShortElementDescriptor{
 	NewElementDescriptor("Player ID", "playerID", reflect.Uint32),
 	NewElementDescriptor("Location ID", "locationID", reflect.Uint32), //Referenced through array index in client.go
-}, NO_HANDLER_YET)
+}, Handlers.NoCheckReplicate)
 
 // 1000-1999: Colony Events
 var COLONY_EVENTS = map[MessageID]*EventSpecification{
@@ -213,7 +183,7 @@ var DIFFICULTY_SELECT_FOR_MINIGAME_EVENT = NewSpecification(2000, "DifficultySel
 	NewElementDescriptor("Minigame ID", "minigameID", reflect.Uint32),
 	NewElementDescriptor("Difficulty ID", "difficultyID", reflect.Uint32),
 	NewElementDescriptor("Difficulty Name", "difficultyName", reflect.String),
-}, NO_HANDLER_YET)
+}, Handlers.NoCheckReplicate)
 
 // 0b -> 3b: uint32: Minigame ID
 //
@@ -224,7 +194,7 @@ var DIFFICULTY_CONFIRMED_FOR_MINIGAME_EVENT = NewSpecification(2001, "Difficulty
 	NewElementDescriptor("Minigame ID", "minigameID", reflect.Uint32),
 	NewElementDescriptor("Difficulty ID", "difficultyID", reflect.Uint32),
 	NewElementDescriptor("Difficulty Name", "difficultyName", reflect.String),
-}, NO_HANDLER_YET)
+}, Handlers.NoCheckReplicate)
 
 // No additional data
 var PLAYERS_DECLARE_INTENT_EVENT = NewSpecification(2002, "PlayersDeclareIntentForMinigame", SERVER_ONLY, REFERENCE_STRUCTURE_EMPTY, INTENTIONAL_IGNORE_HANDLER)
@@ -235,7 +205,7 @@ var PLAYERS_DECLARE_INTENT_EVENT = NewSpecification(2002, "PlayersDeclareIntentF
 var PLAYER_READY_EVENT = NewSpecification(2003, "PlayerReadyForMinigame", OWNER_AND_GUESTS, []ShortElementDescriptor{
 	NewElementDescriptor("Player ID", "id", reflect.Uint32),
 	NewElementDescriptor("Player IGN", "ign", reflect.String),
-}, NO_HANDLER_YET)
+}, Handlers.NoCheckReplicate)
 
 // 0b -> 3b: uint32: Player ID
 //
@@ -243,7 +213,7 @@ var PLAYER_READY_EVENT = NewSpecification(2003, "PlayerReadyForMinigame", OWNER_
 var PLAYER_ABORTING_MINIGAME_EVENT = NewSpecification(2004, "PlayerAbortingMinigame", OWNER_AND_GUESTS, []ShortElementDescriptor{
 	NewElementDescriptor("Player ID", "id", reflect.Uint32),
 	NewElementDescriptor("Player IGN", "ign", reflect.String),
-}, NO_HANDLER_YET)
+}, Handlers.NoCheckReplicate)
 var MINIGAME_START_EVENT = NewSpecification(2005, "EnterMinigame", SERVER_ONLY, REFERENCE_STRUCTURE_EMPTY, INTENTIONAL_IGNORE_HANDLER)
 
 var MINIGAME_INITIATION_EVENTS = map[MessageID]*EventSpecification{
