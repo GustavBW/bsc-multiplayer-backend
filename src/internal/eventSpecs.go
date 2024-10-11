@@ -165,7 +165,7 @@ var ENTER_LOCATION_EVENT = NewSpecification(1001, "EnterLocation", OWNER_ONLY, [
 
 var PLAYER_MOVE_EVENT = NewSpecification(1002, "PlayerMove", OWNER_AND_GUESTS, []ShortElementDescriptor{
 	NewElementDescriptor("Player ID", "playerID", reflect.Uint32),
-	NewElementDescriptor("Location ID", "locationID", reflect.Uint32), //Referenced through array index in client.go
+	NewElementDescriptor("Colony Location ID", "locationID", reflect.Uint32), //Referenced through array index in client.go
 }, Handlers.NoCheckReplicate)
 
 // 1000-1999: Colony Events
@@ -202,10 +202,11 @@ var PLAYERS_DECLARE_INTENT_EVENT = NewSpecification(2002, "PlayersDeclareIntentF
 // 0b -> 3b: uint32: Player ID
 //
 // 4b -> +Nb: utf8 string: Player IGN
-var PLAYER_READY_EVENT = NewSpecification(2003, "PlayerReadyForMinigame", OWNER_AND_GUESTS, []ShortElementDescriptor{
-	NewElementDescriptor("Player ID", "id", reflect.Uint32),
-	NewElementDescriptor("Player IGN", "ign", reflect.String),
-}, Handlers.NoCheckReplicate)
+var PLAYER_READY_EVENT = NewSpecification(2003, "PlayerReadyForMinigame - sent when a player has loaded into a specific minigame",
+	OWNER_AND_GUESTS, []ShortElementDescriptor{
+		NewElementDescriptor("Player ID", "id", reflect.Uint32),
+		NewElementDescriptor("Player IGN", "ign", reflect.String),
+	}, Handlers.OnDebugMessageRecieved)
 
 // 0b -> 3b: uint32: Player ID
 //
@@ -216,6 +217,12 @@ var PLAYER_ABORTING_MINIGAME_EVENT = NewSpecification(2004, "PlayerAbortingMinig
 }, Handlers.NoCheckReplicate)
 var MINIGAME_START_EVENT = NewSpecification(2005, "EnterMinigame", SERVER_ONLY, REFERENCE_STRUCTURE_EMPTY, INTENTIONAL_IGNORE_HANDLER)
 
+var PLAYER_JOIN_ACTIVITY_EVENT = NewSpecification(2006, "PlayerJoinActivity - sent when a player has passed the hand position check",
+	OWNER_AND_GUESTS, []ShortElementDescriptor{
+		NewElementDescriptor("Player ID", "id", reflect.Uint32),
+		NewElementDescriptor("Player IGN", "ign", reflect.String),
+	}, Handlers.NoCheckReplicate)
+
 var MINIGAME_INITIATION_EVENTS = map[MessageID]*EventSpecification{
 	DIFFICULTY_SELECT_FOR_MINIGAME_EVENT.ID:    DIFFICULTY_SELECT_FOR_MINIGAME_EVENT,
 	DIFFICULTY_CONFIRMED_FOR_MINIGAME_EVENT.ID: DIFFICULTY_CONFIRMED_FOR_MINIGAME_EVENT,
@@ -223,6 +230,7 @@ var MINIGAME_INITIATION_EVENTS = map[MessageID]*EventSpecification{
 	PLAYER_READY_EVENT.ID:                      PLAYER_READY_EVENT,
 	PLAYER_ABORTING_MINIGAME_EVENT.ID:          PLAYER_ABORTING_MINIGAME_EVENT,
 	MINIGAME_START_EVENT.ID:                    MINIGAME_START_EVENT,
+	PLAYER_JOIN_ACTIVITY_EVENT.ID:              PLAYER_JOIN_ACTIVITY_EVENT,
 }
 
 // Loads and organises event specification for later use
