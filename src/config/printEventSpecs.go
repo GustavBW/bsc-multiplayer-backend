@@ -96,11 +96,14 @@ func writeEventSpecsToTSFile(file *os.File) error {
 	//Content
 	for _, spec := range specs {
 		generatedType, generatedTypeName := formatTSTypeForEvent(spec, []string{nameOfSharedMessageParentInterface})
+		insertRawJSDOCComment(file, spec.Comment)
 		file.WriteString(generatedType)
 		constantName := formatTSConstantName(spec.Name, "EVENT")
 		baseName := formatTSConstantName(spec.Name, "")
 		tsVarNamesAndIDs = append(tsVarNamesAndIDs, NameAndID{Name: constantName, ID: spec.ID})
+
 		insertJSDOCCommentDescribingStructure(file, spec)
+
 		file.WriteString(fmt.Sprintf("export const %s: EventSpecification<%s> = {\n", constantName, generatedTypeName))
 		file.WriteString(fmt.Sprintf("\tid: %s,\n", fmt.Sprintf("%s.%s", nameOfEventEnum, baseName)))
 		file.WriteString(fmt.Sprintf("\tname: \"%s\",\n", spec.Name))
@@ -158,7 +161,7 @@ func formatTSTypeForEvent(spec internal.EventSpecification, parents []string) (s
 
 	for _, element := range spec.Structure {
 		tsType := TSTypeOf(element.Kind)
-		toReturn += fmt.Sprintf("\t/** %s\n", element.Description)
+		toReturn += fmt.Sprintf("\t/** %s\n\t*\n", element.Description)
 		toReturn += fmt.Sprintf("\t* go type: %s\n", element.Kind.String())
 		toReturn += "\t*/\n"
 		toReturn += fmt.Sprintf("\t%s: %s;\n", element.FieldName, tsType)
@@ -170,7 +173,6 @@ func formatTSTypeForEvent(spec internal.EventSpecification, parents []string) (s
 
 func insertJSDOCCommentDescribingStructure(file *os.File, spec internal.EventSpecification) {
 	file.WriteString(fmt.Sprintf("/** %s Message Structure\n *\n", spec.Name))
-
 	for _, element := range spec.Structure {
 		isVariable := element.ByteSize == 0
 		if isVariable {

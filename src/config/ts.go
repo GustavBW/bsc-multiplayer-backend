@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"os"
 	"reflect"
 )
 
@@ -29,4 +30,8 @@ func TSTypeOf(kind reflect.Kind) string {
 	default:
 		panic(fmt.Errorf("kind %s is not supported", kind))
 	}
+}
+
+func insertRawJSDOCComment(file *os.File, comment string) {
+	file.WriteString(fmt.Sprintf("/**\n * %s\n */\n", comment))
 }
