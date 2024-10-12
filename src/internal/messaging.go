@@ -37,7 +37,7 @@ func SendDebugInfoToClient(client *Client, code uint32, message string) error {
 }
 
 // Appends the message id and server id to a new byte array
-func PrepareServerMessage(spec *EventSpecification) []byte {
+func PrepareServerMessage[T any](spec *EventSpecification[T]) []byte {
 	return util.CopyAndAppend(SERVER_ID_BYTES, spec.IDBytes)
 }
 
@@ -46,15 +46,15 @@ func PrepareServerMessage(spec *EventSpecification) []byte {
 // Expects the msg to be raw binary data.
 //
 // # Returns client id, message id, rest of the message
-func ExtractClientIDAndMessageID(msg []byte) (ClientID, *EventSpecification, []byte, error) {
+func ExtractClientIDAndMessageID(msg []byte) (ClientID, *EventSpecification[any], []byte, error) {
 	if len(msg) < 8 {
 		return 0, nil, []byte{}, fmt.Errorf("message size too small. Must at least include userID (big endian uint32) and messageID (big endian uint32) in that order")
 	}
 	// Extract userID and messageID (uint32)
-	userID := binary.BigEndian.Uint32(msg[:4]) // 0, 1 2 3
-	messageID := binary.BigEndian.Uint32(msg[4:8])
+	userID := binary.LittleEndian.Uint32(msg[:4]) // 0, 1 2 3
+	messageID := binary.LittleEndian.Uint32(msg[4:8])
 
-	var spec *EventSpecification
+	var spec *EventSpecification[any]
 	var specExists bool
 	if spec, specExists = ALL_EVENTS[messageID]; !specExists {
 		return 0, nil, []byte{}, fmt.Errorf("message ID %d not found", messageID)

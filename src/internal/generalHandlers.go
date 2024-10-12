@@ -15,37 +15,20 @@ func (e *UnresponsiveClientsError) Error() string {
 	return fmt.Sprintf("Unresponsive clients: %v", e.UnresponsiveClients)
 }
 
-type handlers struct {
-	NoCheckReplicate       AbstractEventHandler
-	OnClientDisconnect     AbstractEventHandler
-	OnDebugMessageRecieved AbstractEventHandler
+func Handlers_IntentionalIgnoreHandler[T any](lobby *Lobby, client *Client, spec *EventSpecification[T], remainder []byte) error {
+	return nil
 }
 
-var Handlers = handlers{
-	// Replicates the message back to all other clients in the lobby with no checks
-	// DO NOT use outside general client message handling
-	//
-	// May return an UnresponsiveClientsError with the clients that could not be reached
-	NoCheckReplicate:       noCheckReplicate,
-	OnClientDisconnect:     onClientDisconnect,
-	OnDebugMessageRecieved: onDebugMessageRecieved,
-}
-
-func noCheckReplicate(lobby *Lobby, client *Client, messageID MessageID, remainder []byte) error {
-	unresponsive := lobby.BroadcastMessage(client.ID, append(util.BytesOfUint32(messageID), remainder...))
+func Handlers_NoCheckReplicate[T any](lobby *Lobby, client *Client, spec *EventSpecification[T], remainder []byte) error {
+	unresponsive := lobby.BroadcastMessage(client.ID, append(util.BytesOfUint32(spec.ID), remainder...))
 	if len(unresponsive) > 0 {
 		return &UnresponsiveClientsError{UnresponsiveClients: unresponsive}
 	}
 	return nil
 }
 
-func onClientDisconnect(lobby *Lobby, client *Client, messageID MessageID, message []byte) error {
-	lobby.handleGuestDisconnect(client)
-	return nil
-}
-
-func onDebugMessageRecieved(lobby *Lobby, client *Client, messageID MessageID, data []byte) error {
+func Handlers_OnDebugMessageRecieved[T DebugEventMessageDTO](lobby *Lobby, client *Client, spec *EventSpecification[T], remainder []byte) error {
 	//TODO: This kinda allows all users to debug onto the server, which is a bit of a security risk. Remove it after development.
-	log.Printf("[debug event] %s", fmt.Sprintf("Client id %d says: %s", client.ID, string(data)))
+	log.Printf("[debug event] %s", fmt.Sprintf("Client id %d says: %s", client.ID, string(remainder)))
 	return nil
 }

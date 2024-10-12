@@ -8,7 +8,7 @@ import (
 
 func BytesOfUint32(value uint32) []byte {
 	var arr = []byte{0, 0, 0, 0}
-	binary.BigEndian.PutUint32(arr, value)
+	binary.LittleEndian.PutUint32(arr, value)
 	return arr
 }
 

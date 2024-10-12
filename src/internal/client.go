@@ -3,6 +3,7 @@ package internal
 import (
 	"encoding/binary"
 	"sync/atomic"
+	"time"
 
 	"github.com/GustavBW/bsc-multiplayer-backend/src/meta"
 	"github.com/gorilla/websocket"
@@ -16,6 +17,8 @@ type ClientID = uint32
 type DisclosedClientState struct {
 	//Threadsafe, id of last known colony location
 	LastKnownPosition atomic.Uint32
+	//Threadsafe, milliseconds since epoch of last message received
+	MSOfLastMessage atomic.Uint64
 }
 
 // Updates any tracked state for the client. For instance their current position.
@@ -32,9 +35,13 @@ func (dcs *DisclosedClientState) UpdateAny(messageID MessageID, remainder []byte
 			offset := locationIDElement.Offset
 			byteSize := locationIDElement.ByteSize
 			subSlice := remainder[offset : offset+byteSize]
-			dcs.LastKnownPosition.Store(binary.BigEndian.Uint32(subSlice))
+			dcs.LastKnownPosition.Store(binary.LittleEndian.Uint32(subSlice))
 		}
 	}
+
+	// Update the time of last message
+	nowInMS := uint64(time.Now().UnixNano() / 1000000)
+	dcs.MSOfLastMessage.Store(nowInMS)
 }
 
 // Client represents a user connected to a lobby
@@ -52,12 +59,13 @@ type Client struct {
 func NewDisclosedClientState() *DisclosedClientState {
 	return &DisclosedClientState{
 		LastKnownPosition: atomic.Uint32{},
+		MSOfLastMessage:   atomic.Uint64{},
 	}
 }
 
 func NewClient(id ClientID, IGN string, clientType OriginType, conn *websocket.Conn, encoding meta.MessageEncoding) *Client {
 	userIDBytes := make([]byte, 4)
-	binary.BigEndian.PutUint32(userIDBytes, id)
+	binary.LittleEndian.PutUint32(userIDBytes, id)
 	return &Client{
 		ID:       id,
 		IDBytes:  userIDBytes,

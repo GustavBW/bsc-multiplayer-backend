@@ -59,6 +59,7 @@ func gatherLobbyStateHandler(w http.ResponseWriter, r *http.Request, lobbyManage
 			Type: value.Type,
 			State: ClientStateResponseDTO{
 				LastKnownPosition: value.State.LastKnownPosition.Load(),
+				MSOfLastMessage:   value.State.MSOfLastMessage.Load(),
 			},
 		})
 		return true

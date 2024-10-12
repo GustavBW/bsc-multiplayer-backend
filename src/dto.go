@@ -4,6 +4,7 @@ import "github.com/GustavBW/bsc-multiplayer-backend/src/internal"
 
 type ClientStateResponseDTO struct {
 	LastKnownPosition uint32 `json:"lastKnownPosition"`
+	MSOfLastMessage   uint64 `json:"msOfLastMessage"`
 }
 
 type ClientResponseDTO struct {

@@ -80,7 +80,7 @@ func writeEventSpecsToTSFile(file *os.File) error {
 	specs := getOrderedEventSpecs()
 	//Event Type Enum
 	nameOfEventEnum := "EventType"
-	eventEnum := FormatTSEnum(nameOfEventEnum, specs, func(spec internal.EventSpecification) (string, string) {
+	eventEnum := FormatTSEnum(nameOfEventEnum, specs, func(spec internal.EventSpecification[any]) (string, string) {
 		return formatTSConstantName(spec.Name, ""), fmt.Sprint(spec.ID)
 	})
 	file.WriteString(eventEnum)
@@ -143,7 +143,7 @@ func writeEventSpecsToTSFile(file *os.File) error {
 
 // Writes a TS type for the message structure of the event
 // Returns the formatted string and the generated type name
-func formatTSTypeForEvent(spec internal.EventSpecification, parents []string) (string, string) {
+func formatTSTypeForEvent(spec internal.EventSpecification[any], parents []string) (string, string) {
 	var formattedParentExtendsString = ""
 	if len(parents) > 0 {
 		formattedParentExtendsString = "extends "
@@ -171,7 +171,7 @@ func formatTSTypeForEvent(spec internal.EventSpecification, parents []string) (s
 	return toReturn, typeName
 }
 
-func insertJSDOCCommentDescribingStructure(file *os.File, spec internal.EventSpecification) {
+func insertJSDOCCommentDescribingStructure(file *os.File, spec internal.EventSpecification[any]) {
 	file.WriteString(fmt.Sprintf("/** %s Message Structure\n *\n", spec.Name))
 	for _, element := range spec.Structure {
 		isVariable := element.ByteSize == 0
@@ -204,9 +204,9 @@ func writeEventSpecsToJSONFile(file *os.File) error {
 	return fmt.Errorf("not implemented")
 }
 
-func getOrderedEventSpecs() []internal.EventSpecification {
+func getOrderedEventSpecs() []internal.EventSpecification[any] {
 	// Create a slice of the values from the map
-	specs := make([]internal.EventSpecification, 0, len(internal.ALL_EVENTS))
+	specs := make([]internal.EventSpecification[any], 0, len(internal.ALL_EVENTS))
 	for _, spec := range internal.ALL_EVENTS {
 		specs = append(specs, *spec)
 	}

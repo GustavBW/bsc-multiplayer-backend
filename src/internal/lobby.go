@@ -1,7 +1,9 @@
 package internal
 
 import (
+	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log"
 	"sync"
@@ -25,20 +27,23 @@ type Lobby struct {
 	//Prepends senderID
 	BroadcastMessage func(senderID ClientID, message []byte) []*Client
 	Encoding         meta.MessageEncoding
-	Activities       util.ConcurrentTypedMap[uint32, *Activity]
+	activityTracker  *ActivityTracker
+	currentActivity  *Activity
 	CloseQueue       chan<- *Lobby // Queue on which to register self for closing
 	//Maybe introduce message channel for messages to be sent to the lobby
 }
 
 func NewLobby(id LobbyID, ownerID ClientID, colonyID uint32, encoding meta.MessageEncoding, closeQueue chan<- *Lobby) *Lobby {
 	lobby := &Lobby{
-		ID:         id,
-		OwnerID:    ownerID,
-		ColonyID:   colonyID,
-		Clients:    util.ConcurrentTypedMap[ClientID, *Client]{},
-		Closing:    atomic.Bool{},
-		Encoding:   encoding,
-		CloseQueue: closeQueue,
+		ID:              id,
+		OwnerID:         ownerID,
+		ColonyID:        colonyID,
+		Clients:         util.ConcurrentTypedMap[ClientID, *Client]{},
+		Closing:         atomic.Bool{},
+		Encoding:        encoding,
+		activityTracker: NewActivityTracker(),
+		currentActivity: nil,
+		CloseQueue:      closeQueue,
 	}
 
 	switch encoding {
@@ -183,17 +188,58 @@ func (lobby *Lobby) handleConnection(client *Client) {
 	onDisconnect(client)
 }
 
-func (lobby *Lobby) processClientMessage(client *Client, spec *EventSpecification, remainder []byte) error {
+// Assumes all pre-flight checks have been done
+func (lobby *Lobby) processClientMessage(client *Client, spec *EventSpecification[any], remainder []byte) error {
 	// Handle message based on messageID
-	if handlingErr := spec.Handler(lobby, client, spec.ID, remainder); handlingErr != nil {
-		SendDebugInfoToClient(client, 500, "Error handling message: "+handlingErr.Error())
-		log.Printf("[lobby] Error handling message ID %d from clientID %d: %v", spec.ID, client.ID, handlingErr)
-		return fmt.Errorf("Error handling message ID %d from clientID %d: %v", spec.ID, client.ID, handlingErr)
+	if handlingErr := spec.Handler(lobby, client, spec, remainder); handlingErr != nil {
+		if !errors.Is(handlingErr, &UnresponsiveClientsError{}) {
+			SendDebugInfoToClient(client, 500, "Error handling message: "+handlingErr.Error())
+			log.Printf("[lobby] Error handling message ID %d from clientID %d: %v", spec.ID, client.ID, handlingErr)
+			return fmt.Errorf("Error handling message ID %d from clientID %d: %v", spec.ID, client.ID, handlingErr)
+		} else {
+			//TODO: Track unresponsive clients
+		}
 	}
 
 	client.State.UpdateAny(spec.ID, remainder)
+	if client.Type == ORIGIN_TYPE_OWNER {
+		lobby.updateTrackedActivity(client, spec, remainder)
+	}
 
 	return nil
+}
+
+//NewElementDescriptor("Minigame ID", "minigameID", reflect.Uint32),
+//NewElementDescriptor("Difficulty ID", "difficultyID", reflect.Uint32),
+
+// Update the ActivityTracker based on the message received
+func (lobby *Lobby) updateTrackedActivity(client *Client, spec *EventSpecification[any], remainder []byte) {
+	switch spec.ID {
+	case DIFFICULTY_SELECT_FOR_MINIGAME_EVENT.ID:
+		{
+			var messageElement = DIFFICULTY_SELECT_FOR_MINIGAME_EVENT.Structure[0]
+			minigameIDBytes := remainder[messageElement.Offset : messageElement.Offset+messageElement.ByteSize]
+			minigameID := binary.LittleEndian.Uint32(minigameIDBytes)
+			lobby.activityTracker.ChangeActivityID(minigameID)
+
+			messageElement = DIFFICULTY_SELECT_FOR_MINIGAME_EVENT.Structure[1]
+			difficultyIDBytes := remainder[messageElement.Offset : messageElement.Offset+messageElement.ByteSize]
+			difficultyID := binary.LittleEndian.Uint32(difficultyIDBytes)
+			lobby.activityTracker.ChangeDifficultyID(difficultyID)
+		}
+	case DIFFICULTY_CONFIRMED_FOR_MINIGAME_EVENT.ID:
+		{
+
+		}
+	case PLAYER_JOIN_ACTIVITY_EVENT.ID:
+		{
+
+		}
+	case PLAYER_ABORTING_MINIGAME_EVENT.ID, PLAYER_LEFT_EVENT.ID:
+		{
+
+		}
+	}
 }
 
 // Handle user disconnection, and close the lobby if the owner disconnects
