@@ -60,7 +60,7 @@ type EventSpecification[T any] struct {
 // Which, for all server-only events, is nothing.
 func NewSpecification[T any](id MessageID, name string, comment string, whoMaySend map[OriginType]bool, structure ReferenceStructure, handler AbstractEventHandler[T]) *EventSpecification[T] {
 	var idAsBytes = make([]byte, 4)
-	binary.LittleEndian.PutUint32(idAsBytes, id)
+	binary.BigEndian.PutUint32(idAsBytes, id)
 	minimumSize, computed := ComputeStructure(name, structure)
 	return &EventSpecification[T]{
 		Name:            name,

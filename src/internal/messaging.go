@@ -51,8 +51,8 @@ func ExtractClientIDAndMessageID(msg []byte) (ClientID, *EventSpecification[any]
 		return 0, nil, []byte{}, fmt.Errorf("message size too small. Must at least include userID (big endian uint32) and messageID (big endian uint32) in that order")
 	}
 	// Extract userID and messageID (uint32)
-	userID := binary.LittleEndian.Uint32(msg[:4]) // 0, 1 2 3
-	messageID := binary.LittleEndian.Uint32(msg[4:8])
+	userID := binary.BigEndian.Uint32(msg[:4]) // 0, 1 2 3
+	messageID := binary.BigEndian.Uint32(msg[4:8])
 
 	var spec *EventSpecification[any]
 	var specExists bool

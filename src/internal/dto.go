@@ -1,5 +1,7 @@
 package internal
 
+// The following DTO's only represent the "remainder". The "header" is handled generically.
+
 type EmptyDTO struct{}
 
 type DebugEventMessageDTO struct {

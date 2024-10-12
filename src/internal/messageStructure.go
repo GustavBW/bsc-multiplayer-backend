@@ -38,12 +38,15 @@ var REFERENCE_STRUCTURE_EMPTY = ReferenceStructure{}
 // In order slice of computed elements
 type ComputedStructure []MessageElementDescriptor
 
+// in bytes
+const MESSAGE_HEADER_SIZE uint32 = 8
+
 // PANICS if the kind is not supported, or the ReferenceStructure does not adhere to simplified message format
 //
 // Returns the minimum total size of any message of this description as well as the full computed structure
 func ComputeStructure(messageName string, shortDescription ReferenceStructure) (uint32, ComputedStructure) {
 	var computedStructure ComputedStructure
-	var offset uint32 = 8
+	var offset uint32 = MESSAGE_HEADER_SIZE
 	var hasVariableSizeElement bool = false
 	var minimumTotalSize uint32 = 0
 

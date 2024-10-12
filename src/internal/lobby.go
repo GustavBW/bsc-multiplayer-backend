@@ -219,12 +219,12 @@ func (lobby *Lobby) updateTrackedActivity(client *Client, spec *EventSpecificati
 		{
 			var messageElement = DIFFICULTY_SELECT_FOR_MINIGAME_EVENT.Structure[0]
 			minigameIDBytes := remainder[messageElement.Offset : messageElement.Offset+messageElement.ByteSize]
-			minigameID := binary.LittleEndian.Uint32(minigameIDBytes)
+			minigameID := binary.BigEndian.Uint32(minigameIDBytes)
 			lobby.activityTracker.ChangeActivityID(minigameID)
 
 			messageElement = DIFFICULTY_SELECT_FOR_MINIGAME_EVENT.Structure[1]
 			difficultyIDBytes := remainder[messageElement.Offset : messageElement.Offset+messageElement.ByteSize]
-			difficultyID := binary.LittleEndian.Uint32(difficultyIDBytes)
+			difficultyID := binary.BigEndian.Uint32(difficultyIDBytes)
 			lobby.activityTracker.ChangeDifficultyID(difficultyID)
 		}
 	case DIFFICULTY_CONFIRMED_FOR_MINIGAME_EVENT.ID:

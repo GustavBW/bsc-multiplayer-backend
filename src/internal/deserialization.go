@@ -5,9 +5,16 @@ import (
 	"fmt"
 	"math"
 	"reflect"
+	"unicode/utf8"
+
+	"github.com/GustavBW/bsc-multiplayer-backend/src/util"
 )
 
-func Deserialize[T any](spec *EventSpecification[T], data []byte) (*T, error) {
+// Serialize any some data into a struct by the type given in the spec
+//
+// Based on remainderOnly, it will either expect the entire message (headers and all)
+// or only the remainder (body) of the message.
+func Deserialize[T any](spec *EventSpecification[T], data []byte, remainderOnly bool) (*T, error) {
 	var dest T
 
 	t := reflect.TypeOf(dest)
@@ -25,6 +32,9 @@ func Deserialize[T any](spec *EventSpecification[T], data []byte) (*T, error) {
 		return nil, fmt.Errorf("expected %d fields, got %d", len(spec.Structure), t.NumField())
 	}
 
+	// A specs offset is including the header, so if remainderOnly == true, we need to adjust
+	offsetAdjustment := util.Ternary(remainderOnly, MESSAGE_HEADER_SIZE, 0)
+
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
 		element := spec.Structure[i]
@@ -32,7 +42,7 @@ func Deserialize[T any](spec *EventSpecification[T], data []byte) (*T, error) {
 			return nil, fmt.Errorf("expected field %d to be of kind %s, got %s", i, element.Kind, field.Type.Kind())
 		}
 
-		value, err := parseGoTypeFromBytes(data, element.Offset, element.Kind)
+		value, err := parseGoTypeFromBytes(data, element.Offset-offsetAdjustment, element.Kind)
 		if err != nil {
 			return nil, err
 		}
@@ -79,23 +89,30 @@ func parseGoTypeFromBytes(data []byte, offset uint32, kind reflect.Kind) (interf
 	case reflect.Uint8:
 		return uint8(data[offset]), nil
 	case reflect.Uint16:
-		return binary.LittleEndian.Uint16(data[offset:]), nil
+		return binary.BigEndian.Uint16(data[offset:]), nil
 	case reflect.Uint32:
-		return binary.LittleEndian.Uint32(data[offset:]), nil
+		return binary.BigEndian.Uint32(data[offset:]), nil
 	case reflect.Uint64:
-		return binary.LittleEndian.Uint64(data[offset:]), nil
+		return binary.BigEndian.Uint64(data[offset:]), nil
 	case reflect.Int8:
 		return int8(data[offset]), nil
 	case reflect.Int16:
-		return int16(binary.LittleEndian.Uint16(data[offset:])), nil
+		return int16(binary.BigEndian.Uint16(data[offset:])), nil
 	case reflect.Int32:
-		return int32(binary.LittleEndian.Uint32(data[offset:])), nil
+		return int32(binary.BigEndian.Uint32(data[offset:])), nil
 	case reflect.Int64:
-		return int64(binary.LittleEndian.Uint64(data[offset:])), nil
+		return int64(binary.BigEndian.Uint64(data[offset:])), nil
 	case reflect.Float32:
-		return math.Float32frombits(binary.LittleEndian.Uint32(data[offset:])), nil
+		return math.Float32frombits(binary.BigEndian.Uint32(data[offset:])), nil
 	case reflect.Float64:
-		return math.Float64frombits(binary.LittleEndian.Uint64(data[offset:])), nil
+		return math.Float64frombits(binary.BigEndian.Uint64(data[offset:])), nil
+	case reflect.String:
+		// For strings, we'll take all remaining bytes from the offset
+		remaining := data[offset:]
+		if !utf8.Valid(remaining) {
+			return nil, fmt.Errorf("invalid UTF-8 string")
+		}
+		return string(remaining), nil
 	default:
 		panic(fmt.Sprintf("Unsupported type: %v", kind))
 	}

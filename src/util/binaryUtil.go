@@ -6,12 +6,14 @@ import (
 	"encoding/hex"
 )
 
+// Little Endian order
 func BytesOfUint32(value uint32) []byte {
 	var arr = []byte{0, 0, 0, 0}
-	binary.LittleEndian.PutUint32(arr, value)
+	binary.BigEndian.PutUint32(arr, value)
 	return arr
 }
 
+// Copies both and appends them to a third slice which is returned
 func CopyAndAppend[T any](arr1 []T, arr2 []T) []T {
 	var arr = make([]T, len(arr1)+len(arr2))
 	copy(arr, arr1)

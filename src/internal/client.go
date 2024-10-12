@@ -35,7 +35,7 @@ func (dcs *DisclosedClientState) UpdateAny(messageID MessageID, remainder []byte
 			offset := locationIDElement.Offset
 			byteSize := locationIDElement.ByteSize
 			subSlice := remainder[offset : offset+byteSize]
-			dcs.LastKnownPosition.Store(binary.LittleEndian.Uint32(subSlice))
+			dcs.LastKnownPosition.Store(binary.BigEndian.Uint32(subSlice))
 		}
 	}
 
@@ -65,7 +65,7 @@ func NewDisclosedClientState() *DisclosedClientState {
 
 func NewClient(id ClientID, IGN string, clientType OriginType, conn *websocket.Conn, encoding meta.MessageEncoding) *Client {
 	userIDBytes := make([]byte, 4)
-	binary.LittleEndian.PutUint32(userIDBytes, id)
+	binary.BigEndian.PutUint32(userIDBytes, id)
 	return &Client{
 		ID:       id,
 		IDBytes:  userIDBytes,
