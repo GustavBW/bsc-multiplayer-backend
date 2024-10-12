@@ -21,17 +21,6 @@ const (
 // Lobby, Client, MessageID, Message Data
 type AbstractEventHandler[T any] func(*Lobby, *Client, *EventSpecification[T], []byte) error
 
-var NO_HANDLER_YET AbstractEventHandler[any] = func(lobby *Lobby, client *Client, spec *EventSpecification[any], data []byte) error {
-	log.Printf("[event] No handler for message ID %d", client.ID)
-	return fmt.Errorf("no handler for message ID %d", client.ID)
-}
-
-// For events that only the server may send, and which, if recieved by the server, should be ignored.
-var INTENTIONAL_IGNORE_HANDLER AbstractEventHandler[any] = func(lobby *Lobby, client *Client, spec *EventSpecification[any], data []byte) error {
-	log.Printf("[event] Client %d be trying to send dubious messages, message id %d, ignored.", client.ID, spec.ID)
-	return nil
-}
-
 // All events start with 2 big endian uint32's, the first being the user id, the second being the event id
 //
 // The event id is used to determine what the event is, and how to handle it.
@@ -58,7 +47,9 @@ type EventSpecification[T any] struct {
 
 // The Handler defines what the server should do when it recieves a message of this type.
 // Which, for all server-only events, is nothing.
-func NewSpecification[T any](id MessageID, name string, comment string, whoMaySend map[OriginType]bool, structure ReferenceStructure, handler AbstractEventHandler[T]) *EventSpecification[T] {
+func NewSpecification[T any](id MessageID, name string, comment string, whoMaySend map[OriginType]bool,
+	structure ReferenceStructure, handler AbstractEventHandler[T]) *EventSpecification[T] {
+
 	var idAsBytes = make([]byte, 4)
 	binary.BigEndian.PutUint32(idAsBytes, id)
 	minimumSize, computed := ComputeStructure(name, structure)
@@ -98,11 +89,6 @@ var OWNER_AND_GUESTS = map[OriginType]bool{
 	ORIGIN_TYPE_SERVER: false,
 }
 
-// 0b -> 3b: uint32: Code (HTTP status code)
-//
-// 3b -> +Nb: utf8 string: Message
-//
-// This event is for debugging purposes only, and should be removed before production.
 var DEBUG_EVENT = NewSpecification[DebugEventMessageDTO](0, "DebugInfo", "For debug messages", ALL_ALLOWED, []ShortElementDescriptor{
 	NewElementDescriptor("HTTP Code (if applicable)", "code", reflect.Uint32),
 	NewElementDescriptor("Debug message", "message", reflect.String),
@@ -137,7 +123,7 @@ func NewSpecMap(events ...interface{}) map[MessageID]*EventSpecification[any] {
 			panic(fmt.Sprintf("NewSpecMap: not an EventSpecification: %v, name: %s", reflect.TypeOf(event), nameWithoutGenerics))
 		}
 
-		// Unsafe conversion - because not having generic invariance ... gets really tiring at some point
+		// Unsafe conversion - because not having generic invariance gets really tiring at some point
 		unsafePtr := reflect.NewAt(reflect.TypeOf((*EventSpecification[any])(nil)).Elem(), unsafe.Pointer(v.Pointer()))
 		asSpec := unsafePtr.Interface().(*EventSpecification[any])
 
@@ -146,12 +132,12 @@ func NewSpecMap(events ...interface{}) map[MessageID]*EventSpecification[any] {
 	return result
 }
 
-var PLAYER_JOINED_EVENT = NewSpecification[PlayerJoinedEventDTO](1, "PlayerJoined", "Sent when a player joins the lobby", SERVER_ONLY, []ShortElementDescriptor{
+var PLAYER_JOINED_EVENT = NewSpecification[PlayerJoinedMessageDTO](1, "PlayerJoined", "Sent when a player joins the lobby", SERVER_ONLY, []ShortElementDescriptor{
 	NewElementDescriptor("Player ID", "id", reflect.Uint32),
 	NewElementDescriptor("Player IGN", "ign", reflect.String),
 }, Handlers_IntentionalIgnoreHandler) // Handled internally
 
-var PLAYER_LEFT_EVENT = NewSpecification[PlayerLeftEventDTO](5, "PlayerLeft", "Sent when a player leaves the lobby", SERVER_ONLY, []ShortElementDescriptor{
+var PLAYER_LEFT_EVENT = NewSpecification[PlayerLeftMessageDTO](5, "PlayerLeft", "Sent when a player leaves the lobby", SERVER_ONLY, []ShortElementDescriptor{
 	NewElementDescriptor("Player ID", "id", reflect.Uint32),
 	NewElementDescriptor("Player IGN", "ign", reflect.String),
 }, Handlers_IntentionalIgnoreHandler) // Handled internally
@@ -165,11 +151,11 @@ var SERVER_CLOSING_EVENT = NewSpecification[EmptyDTO](8, "ServerClosing", "Sent 
 // 1-999: Lobby Management
 var LOBBY_MANAGEMENT_EVENTS = NewSpecMap(PLAYER_JOINED_EVENT, PLAYER_LEFT_EVENT, LOBBY_CLOSING_EVENT, SERVER_CLOSING_EVENT)
 
-var ENTER_LOCATION_EVENT = NewSpecification[EnterLocationEventDTO](1001, "EnterLocation", "Send when the owner enters a location", OWNER_ONLY, []ShortElementDescriptor{
+var ENTER_LOCATION_EVENT = NewSpecification[EnterLocationMessageDTO](1001, "EnterLocation", "Send when the owner enters a location", OWNER_ONLY, []ShortElementDescriptor{
 	NewElementDescriptor("Colony Location ID", "id", reflect.Uint32),
 }, Handlers_NoCheckReplicate)
 
-var PLAYER_MOVE_EVENT = NewSpecification[PlayerMoveEventDTO](1002, "PlayerMove", "Sent when any player moves to some location", OWNER_AND_GUESTS, []ShortElementDescriptor{
+var PLAYER_MOVE_EVENT = NewSpecification[PlayerMoveMessageDTO](1002, "PlayerMove", "Sent when any player moves to some location", OWNER_AND_GUESTS, []ShortElementDescriptor{
 	NewElementDescriptor("Player ID", "playerID", reflect.Uint32),
 	NewElementDescriptor("Colony Location ID", "colonyLocationID", reflect.Uint32), //Referenced through array index in client.go
 }, Handlers_NoCheckReplicate)
@@ -177,14 +163,14 @@ var PLAYER_MOVE_EVENT = NewSpecification[PlayerMoveEventDTO](1002, "PlayerMove",
 // 1000-1999: Colony Events
 var COLONY_EVENTS = NewSpecMap(ENTER_LOCATION_EVENT, PLAYER_MOVE_EVENT)
 
-var DIFFICULTY_SELECT_FOR_MINIGAME_EVENT = NewSpecification[DifficultySelectForMinigameEventDTO](2000, "DifficultySelectForMinigame", "Sent when the owner selects a difficulty (NOT CONFIRM)",
+var DIFFICULTY_SELECT_FOR_MINIGAME_EVENT = NewSpecification[DifficultySelectForMinigameMessageDTO](2000, "DifficultySelectForMinigame", "Sent when the owner selects a difficulty (NOT CONFIRM)",
 	OWNER_ONLY, []ShortElementDescriptor{
 		NewElementDescriptor("Minigame ID", "minigameID", reflect.Uint32),
 		NewElementDescriptor("Difficulty ID", "difficultyID", reflect.Uint32),
 		NewElementDescriptor("Difficulty Name", "difficultyName", reflect.String),
 	}, Handlers_NoCheckReplicate)
 
-var DIFFICULTY_CONFIRMED_FOR_MINIGAME_EVENT = NewSpecification[DifficultyConfirmedForMinigameEventDTO](2001, "DifficultyConfirmedForMinigame", "Sent when the owner confirms a selected difficulty",
+var DIFFICULTY_CONFIRMED_FOR_MINIGAME_EVENT = NewSpecification[DifficultyConfirmedForMinigameMessageDTO](2001, "DifficultyConfirmedForMinigame", "Sent when the owner confirms a selected difficulty",
 	OWNER_ONLY, []ShortElementDescriptor{
 		NewElementDescriptor("Minigame ID", "minigameID", reflect.Uint32),
 		NewElementDescriptor("Difficulty ID", "difficultyID", reflect.Uint32),
@@ -195,13 +181,13 @@ var PLAYERS_DECLARE_INTENT_EVENT = NewSpecification[EmptyDTO](2002, "PlayersDecl
 	"recieved PLAYER JOIN ACTIVITY or PLAYER ABORTING MINIGAME from all players in the lobby",
 	SERVER_ONLY, REFERENCE_STRUCTURE_EMPTY, Handlers_IntentionalIgnoreHandler)
 
-var PLAYER_READY_EVENT = NewSpecification[PlayerReadyEventDTO](2003, "PlayerReadyForMinigame", "sent when a player has loaded into a specific minigame",
+var PLAYER_READY_EVENT = NewSpecification[PlayerReadyMessageDTO](2003, "PlayerReadyForMinigame", "sent when a player has loaded into a specific minigame",
 	OWNER_AND_GUESTS, []ShortElementDescriptor{
 		NewElementDescriptor("Player ID", "id", reflect.Uint32),
 		NewElementDescriptor("Player IGN", "ign", reflect.String),
 	}, Handlers_NoCheckReplicate)
 
-var PLAYER_ABORTING_MINIGAME_EVENT = NewSpecification[PlayerAbortingMinigameEventDTO](2004, "PlayerAbortingMinigame", "sent when a player opts out of the minigame by leaving the hand position check",
+var PLAYER_ABORTING_MINIGAME_EVENT = NewSpecification[PlayerAbortingMinigameMessageDTO](2004, "PlayerAbortingMinigame", "sent when a player opts out of the minigame by leaving the hand position check",
 	OWNER_AND_GUESTS, []ShortElementDescriptor{
 		NewElementDescriptor("Player ID", "id", reflect.Uint32),
 		NewElementDescriptor("Player IGN", "ign", reflect.String),
@@ -210,7 +196,7 @@ var PLAYER_ABORTING_MINIGAME_EVENT = NewSpecification[PlayerAbortingMinigameEven
 var MINIGAME_BEGINS_EVENT = NewSpecification[EmptyDTO](2005, "MinigameBegins", "Sent when the server has recieved PLAYER READY from all participants",
 	SERVER_ONLY, REFERENCE_STRUCTURE_EMPTY, Handlers_IntentionalIgnoreHandler)
 
-var PLAYER_JOIN_ACTIVITY_EVENT = NewSpecification[PlayerJoinActivityEventDTO](2006, "PlayerJoinActivity", "sent when a player has passed the hand position check",
+var PLAYER_JOIN_ACTIVITY_EVENT = NewSpecification[PlayerJoinActivityMessageDTO](2006, "PlayerJoinActivity", "sent when a player has passed the hand position check",
 	OWNER_AND_GUESTS, []ShortElementDescriptor{
 		NewElementDescriptor("Player ID", "id", reflect.Uint32),
 		NewElementDescriptor("Player IGN", "ign", reflect.String),

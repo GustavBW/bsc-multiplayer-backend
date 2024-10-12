@@ -19,6 +19,24 @@ type ActivityTracker struct {
 	}
 }
 
+// Returns false if the activity isn't locked in yet, and thus participant registration is not to be done yet
+func (ta *ActivityTracker) AddParticipant(client *Client) bool {
+	if ta.lockedIn.Load() {
+		ta.participantTracker.OptIn.Store(client.ID, client)
+		return true
+	}
+	return false
+}
+
+// Returns false if the activity isn't locked in yet, and thus participant registration is not to be done yet
+func (ta *ActivityTracker) RemoveParticipant(client *Client) bool {
+	if ta.lockedIn.Load() {
+		ta.participantTracker.OptOut.Store(client.ID, client)
+		return true
+	}
+	return false
+}
+
 // Changes the activity id.
 //
 // Returns true if the change was successful

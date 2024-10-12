@@ -15,6 +15,14 @@ import (
 // Based on remainderOnly, it will either expect the entire message (headers and all)
 // or only the remainder (body) of the message.
 func Deserialize[T any](spec *EventSpecification[T], data []byte, remainderOnly bool) (*T, error) {
+	// A specs offset is including the header although it does not itself describe it,
+	// so if remainderOnly == true, we need subtract the header size to get the correct offset
+	offsetAdjustment := util.Ternary(remainderOnly, MESSAGE_HEADER_SIZE, 0)
+
+	if len(data) < int(spec.ExpectedMinSize)-int(offsetAdjustment) {
+		return nil, fmt.Errorf("expected at least %d bytes, got %d", spec.ExpectedMinSize, len(data))
+	}
+
 	var dest T
 
 	t := reflect.TypeOf(dest)
@@ -31,9 +39,6 @@ func Deserialize[T any](spec *EventSpecification[T], data []byte, remainderOnly 
 	if t.NumField() != len(spec.Structure) {
 		return nil, fmt.Errorf("expected %d fields, got %d", len(spec.Structure), t.NumField())
 	}
-
-	// A specs offset is including the header, so if remainderOnly == true, we need to adjust
-	offsetAdjustment := util.Ternary(remainderOnly, MESSAGE_HEADER_SIZE, 0)
 
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)

@@ -9,48 +9,48 @@ type DebugEventMessageDTO struct {
 	Message string `json:"message"`
 }
 
-type PlayerJoinedEventDTO struct {
+type PlayerJoinedMessageDTO struct {
 	PlayerID uint32 `json:"id"`
 	IGN      string `json:"ign"`
 }
 
-type PlayerLeftEventDTO struct {
+type PlayerLeftMessageDTO struct {
 	PlayerID uint32 `json:"id"`
 	IGN      string `json:"ign"`
 }
 
-type EnterLocationEventDTO struct {
+type EnterLocationMessageDTO struct {
 	ID uint32 `json:"id"`
 }
 
-type PlayerMoveEventDTO struct {
+type PlayerMoveMessageDTO struct {
 	PlayerID         uint32 `json:"playerID"`
 	ColonyLocationID uint32 `json:"colonyLocationID"`
 }
 
-type DifficultySelectForMinigameEventDTO struct {
+type DifficultySelectForMinigameMessageDTO struct {
 	MinigameID     uint32 `json:"minigameID"`
 	DifficultyID   uint32 `json:"difficultyID"`
 	DifficultyName string `json:"difficultyName"`
 }
 
-type DifficultyConfirmedForMinigameEventDTO struct {
+type DifficultyConfirmedForMinigameMessageDTO struct {
 	MinigameID     uint32 `json:"minigameID"`
 	DifficultyID   uint32 `json:"difficultyID"`
 	DifficultyName string `json:"difficultyName"`
 }
 
-type PlayerReadyEventDTO struct {
+type PlayerReadyMessageDTO struct {
 	PlayerID uint32 `json:"id"`
 	IGN      string `json:"ign"`
 }
 
-type PlayerAbortingMinigameEventDTO struct {
+type PlayerAbortingMinigameMessageDTO struct {
 	PlayerID uint32 `json:"id"`
 	IGN      string `json:"ign"`
 }
 
-type PlayerJoinActivityEventDTO struct {
+type PlayerJoinActivityMessageDTO struct {
 	PlayerID uint32 `json:"id"`
 	IGN      string `json:"ign"`
 }

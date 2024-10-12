@@ -4,12 +4,19 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
+	"math"
 )
 
 // Little Endian order
 func BytesOfUint32(value uint32) []byte {
 	var arr = []byte{0, 0, 0, 0}
 	binary.BigEndian.PutUint32(arr, value)
+	return arr
+}
+
+func BytesOfFloat32(f float32) []byte {
+	var arr = make([]byte, 4)
+	binary.BigEndian.PutUint32(arr, math.Float32bits(f))
 	return arr
 }
 

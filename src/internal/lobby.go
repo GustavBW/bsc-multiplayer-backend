@@ -1,7 +1,6 @@
 package internal
 
 import (
-	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -209,35 +208,46 @@ func (lobby *Lobby) processClientMessage(client *Client, spec *EventSpecificatio
 	return nil
 }
 
-//NewElementDescriptor("Minigame ID", "minigameID", reflect.Uint32),
-//NewElementDescriptor("Difficulty ID", "difficultyID", reflect.Uint32),
-
 // Update the ActivityTracker based on the message received
 func (lobby *Lobby) updateTrackedActivity(client *Client, spec *EventSpecification[any], remainder []byte) {
 	switch spec.ID {
 	case DIFFICULTY_SELECT_FOR_MINIGAME_EVENT.ID:
-		{
-			var messageElement = DIFFICULTY_SELECT_FOR_MINIGAME_EVENT.Structure[0]
-			minigameIDBytes := remainder[messageElement.Offset : messageElement.Offset+messageElement.ByteSize]
-			minigameID := binary.BigEndian.Uint32(minigameIDBytes)
-			lobby.activityTracker.ChangeActivityID(minigameID)
-
-			messageElement = DIFFICULTY_SELECT_FOR_MINIGAME_EVENT.Structure[1]
-			difficultyIDBytes := remainder[messageElement.Offset : messageElement.Offset+messageElement.ByteSize]
-			difficultyID := binary.BigEndian.Uint32(difficultyIDBytes)
-			lobby.activityTracker.ChangeDifficultyID(difficultyID)
+		deserialized, err := Deserialize(DIFFICULTY_SELECT_FOR_MINIGAME_EVENT, remainder, true)
+		if err != nil {
+			log.Printf("[lobby] While updating tracked activity: Error deserializing message from clientID %d: %v", client.ID, err)
+			SendDebugInfoToClient(client, 400, "Error deserializing message: "+err.Error())
+			return
 		}
-	case DIFFICULTY_CONFIRMED_FOR_MINIGAME_EVENT.ID:
-		{
+		if !(lobby.activityTracker.ChangeActivityID(deserialized.MinigameID) &&
+			lobby.activityTracker.ChangeDifficultyID(deserialized.DifficultyID)) {
+			log.Printf("[lobby] Error changing activity or difficulty for activity because the tracker is locked. Message from %d", client.ID)
+			SendDebugInfoToClient(client, 400, "Cannot change activity or difficulty for activity because the activity has been locked in already")
+		}
 
+	case DIFFICULTY_CONFIRMED_FOR_MINIGAME_EVENT.ID:
+		deserialized, err := Deserialize(DIFFICULTY_CONFIRMED_FOR_MINIGAME_EVENT, remainder, true)
+		if err != nil {
+			log.Printf("[lobby] While updating tracked activity: Error deserializing message from clientID %d: %v", client.ID, err)
+			SendDebugInfoToClient(client, 400, "Error deserializing message: "+err.Error())
+			return
+		}
+		if lobby.activityTracker.ChangeActivityID(deserialized.MinigameID) &&
+			lobby.activityTracker.ChangeDifficultyID(deserialized.DifficultyID) {
+			lobby.activityTracker.LockIn()
+		} else {
+			log.Printf("[lobby] Multiple lock in attempts ignored: Activity ID and Difficulty ID has already been locked in. Message from %d", client.ID)
+			SendDebugInfoToClient(client, 400, "Multiple lock in attempts ignored: Activity ID and Difficulty ID has already been locked in")
 		}
 	case PLAYER_JOIN_ACTIVITY_EVENT.ID:
-		{
-
+		if !lobby.activityTracker.AddParticipant(client) {
+			log.Printf("[lobby] Error adding participant to activity because it is not yet locked in. Message from %d", client.ID)
+			SendDebugInfoToClient(client, 400, "Cannot add participant to activity because the Activity is not yet locked in")
 		}
+		//TODO: When all clients in lobby have joined or opted out, begin the rest of the process
 	case PLAYER_ABORTING_MINIGAME_EVENT.ID, PLAYER_LEFT_EVENT.ID:
-		{
-
+		if !lobby.activityTracker.RemoveParticipant(client) {
+			log.Printf("[lobby] Error removing participant from activity because it is not yet locked in. Message from %d", client.ID)
+			SendDebugInfoToClient(client, 400, "Cannot remove participant from activity because the Activity is not yet locked in")
 		}
 	}
 }
