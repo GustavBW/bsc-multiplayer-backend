@@ -14,7 +14,7 @@ type ClientID = uint32
 //
 // Any public contents of this struct must be threadsafe as this object for any client, is updated and accessed from multiple threads
 type DisclosedClientState struct {
-	//Threadsafe, id of last known location (colony location)
+	//Threadsafe, id of last known colony location
 	LastKnownPosition atomic.Uint32
 }
 
@@ -39,10 +39,11 @@ func (dcs *DisclosedClientState) UpdateAny(messageID MessageID, remainder []byte
 
 // Client represents a user connected to a lobby
 type Client struct {
-	ID       ClientID
-	IDBytes  []byte
-	IGN      string
-	Type     OriginType
+	ID      ClientID
+	IDBytes []byte
+	IGN     string
+	Type    OriginType
+	//Updated in sync with processing of this clients messages
 	State    *DisclosedClientState
 	Encoding meta.MessageEncoding
 	Conn     *websocket.Conn

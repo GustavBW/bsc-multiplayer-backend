@@ -46,21 +46,23 @@ func PrepareServerMessage(spec *EventSpecification) []byte {
 // Expects the msg to be raw binary data.
 //
 // # Returns client id, message id, rest of the message
-func ExtractClientIDAndMessageID(msg []byte) (ClientID, MessageID, []byte, error) {
+func ExtractClientIDAndMessageID(msg []byte) (ClientID, *EventSpecification, []byte, error) {
 	if len(msg) < 8 {
-		return 0, 0, []byte{}, fmt.Errorf("message size too small. Must at least include userID (big endian uint32) and messageID (big endian uint32) in that order")
+		return 0, nil, []byte{}, fmt.Errorf("message size too small. Must at least include userID (big endian uint32) and messageID (big endian uint32) in that order")
 	}
 	// Extract userID and messageID (uint32)
 	userID := binary.BigEndian.Uint32(msg[:4]) // 0, 1 2 3
 	messageID := binary.BigEndian.Uint32(msg[4:8])
 
-	if spec, exists := ALL_EVENTS[messageID]; !exists {
-		return 0, 0, []byte{}, fmt.Errorf("message ID %d not found", messageID)
+	var spec *EventSpecification
+	var specExists bool
+	if spec, specExists = ALL_EVENTS[messageID]; !specExists {
+		return 0, nil, []byte{}, fmt.Errorf("message ID %d not found", messageID)
 	} else if uint32(len(msg)) < spec.ExpectedMinSize {
-		return 0, 0, []byte{}, fmt.Errorf("message size too small. Expected at least %d bytes for message type %s, got %d", spec.ExpectedMinSize, spec.Name, len(msg))
+		return 0, nil, []byte{}, fmt.Errorf("message size too small. Expected at least %d bytes for message type %s, got %d", spec.ExpectedMinSize, spec.Name, len(msg))
 	}
 
-	return ClientID(userID), MessageID(messageID), msg[8:], nil
+	return ClientID(userID), spec, msg[8:], nil
 }
 
 // BroadcastMessage sends a message to all users in the lobby except the sender

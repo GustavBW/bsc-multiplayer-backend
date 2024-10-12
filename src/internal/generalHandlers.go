@@ -40,7 +40,7 @@ func noCheckReplicate(lobby *Lobby, client *Client, messageID MessageID, remaind
 }
 
 func onClientDisconnect(lobby *Lobby, client *Client, messageID MessageID, message []byte) error {
-	lobby.handleDisconnect(client)
+	lobby.handleGuestDisconnect(client)
 	return nil
 }
 

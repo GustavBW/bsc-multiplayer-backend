@@ -25,6 +25,7 @@ type Lobby struct {
 	//Prepends senderID
 	BroadcastMessage func(senderID ClientID, message []byte) []*Client
 	Encoding         meta.MessageEncoding
+	Activities       util.ConcurrentTypedMap[uint32, *Activity]
 	CloseQueue       chan<- *Lobby // Queue on which to register self for closing
 	//Maybe introduce message channel for messages to be sent to the lobby
 }
@@ -92,10 +93,17 @@ func (lobby *Lobby) handleConnection(client *Client) {
 		return nil
 	})
 
+	var onDisconnect func(*Client)
+	if client.Type == ORIGIN_TYPE_OWNER {
+		onDisconnect = lobby.handleOwnerDisconnect
+	} else {
+		onDisconnect = lobby.handleGuestDisconnect
+	}
+
 	// Set Close handler
 	client.Conn.SetCloseHandler(func(code int, text string) error {
 		log.Printf("[lobby] User %d disconnected with close message: %d - %s", client.ID, code, text)
-		lobby.handleDisconnect(client)
+		onDisconnect(client)
 		return nil
 	})
 
@@ -131,8 +139,7 @@ func (lobby *Lobby) handleConnection(client *Client) {
 			continue
 		}
 
-		clientID, messageID, remainder, extractErr := ExtractClientIDAndMessageID(msg)
-
+		clientID, spec, remainder, extractErr := ExtractClientIDAndMessageID(msg)
 		if extractErr != nil {
 			log.Printf("[lobby] Error in message from client id %d: %s", client.ID, extractErr.Error())
 			if cantSendDebugInfo := SendDebugInfoToClient(client, 400, extractErr.Error()); cantSendDebugInfo != nil {
@@ -141,11 +148,29 @@ func (lobby *Lobby) handleConnection(client *Client) {
 			}
 			continue
 		}
+		// Although the client object as returned here, should be the same as the one in the input to this method,
+		// just for safety, we fetch the client object from the lobby's client map anyway
+		client, clientExists := lobby.Clients.Load(clientID)
+		if !clientExists {
+			log.Printf("[lobby] User %d not found in lobby %d", clientID, lobby.ID)
+			if err := SendDebugInfoToClient(client, 401, fmt.Sprintf("Unauthorized: client %d not found in lobby %d", clientID, lobby.ID)); err != nil {
+				break
+			}
+			continue
+		}
 
-		log.Printf("[lobby] Received message from clientID: %d, messageID: %d", clientID, messageID)
+		if !spec.SendPermissions[client.Type] {
+			log.Printf("[lobby] User %d not allowed to send message ID %d", client.ID, spec.ID)
+			if err := SendDebugInfoToClient(client, 401, fmt.Sprintf("Unauthorized: client %d is not allowed to send messages of id %d", client.ID, spec.ID)); err != nil {
+				break
+			}
+			continue
+		}
+
+		log.Printf("[lobby] Received message from clientID: %d, messageID: %d", clientID, spec.ID)
 
 		// Further processing based on messageID
-		if processingError := lobby.processClientMessage(clientID, messageID, remainder); processingError != nil {
+		if processingError := lobby.processClientMessage(client, spec, remainder); processingError != nil {
 			log.Printf("[lobby] Error processing message from clientID %d: %v", clientID, processingError)
 
 			if cantSendDebugInfo := SendDebugInfoToClient(client, 500, "Error processing message: "+processingError.Error()); cantSendDebugInfo != nil {
@@ -155,74 +180,69 @@ func (lobby *Lobby) handleConnection(client *Client) {
 		}
 	}
 	// Some disconnect issues here.
-	lobby.handleDisconnect(client)
+	onDisconnect(client)
 }
 
-// Example processClientMessage for handling the extracted data
-func (lobby *Lobby) processClientMessage(clientID ClientID, messageID MessageID, remainder []byte) error {
+func (lobby *Lobby) processClientMessage(client *Client, spec *EventSpecification, remainder []byte) error {
 	// Handle message based on messageID
-	client, clientExists := lobby.Clients.Load(clientID)
-	if !clientExists {
-		SendDebugInfoToClient(client, 401, fmt.Sprintf("Unauthorized: client %d not found in lobby %d", clientID, lobby.ID))
-		log.Printf("[lobby] User %d not found in lobby %d", clientID, lobby.ID)
-		return fmt.Errorf("user %d not found in lobby %d", clientID, lobby.ID)
-	}
-
-	spec, exists := ALL_EVENTS[MessageID(messageID)]
-	if !exists {
-		SendDebugInfoToClient(client, 404, fmt.Sprintf("No such message: client %d send message id %d, but that does not exist", clientID, messageID))
-		log.Printf("[lobby] Unknown message ID %d from clientID %d", messageID, clientID)
-		return fmt.Errorf("unknown message ID %d from clientID %d", messageID, clientID)
-	}
-
-	if !spec.SendPermissions[client.Type] {
-		SendDebugInfoToClient(client, 401, fmt.Sprintf("Unauthorized: client %d is not allowed to send messages of id %d", clientID, messageID))
-		log.Printf("[lobby] User %d not allowed to send message ID %d", clientID, messageID)
-		return fmt.Errorf("user %d not allowed to send message ID %d", clientID, messageID)
-	}
-
-	if handlingErr := spec.Handler(lobby, client, messageID, remainder); handlingErr != nil {
+	if handlingErr := spec.Handler(lobby, client, spec.ID, remainder); handlingErr != nil {
 		SendDebugInfoToClient(client, 500, "Error handling message: "+handlingErr.Error())
-		log.Printf("[lobby] Error handling message ID %d from clientID %d: %v", messageID, clientID, handlingErr)
-		return fmt.Errorf("Error handling message ID %d from clientID %d: %v", messageID, clientID, handlingErr)
+		log.Printf("[lobby] Error handling message ID %d from clientID %d: %v", spec.ID, client.ID, handlingErr)
+		return fmt.Errorf("Error handling message ID %d from clientID %d: %v", spec.ID, client.ID, handlingErr)
 	}
-	go client.State.UpdateAny(messageID, remainder)
+
+	client.State.UpdateAny(spec.ID, remainder)
 
 	return nil
 }
 
 // Handle user disconnection, and close the lobby if the owner disconnects
-func (lobby *Lobby) handleDisconnect(user *Client) {
-	lobby.Sync.Lock()
-	defer lobby.Sync.Unlock()
+func (lobby *Lobby) handleGuestDisconnect(user *Client) {
+	lobby.RemoveClient(user)
+}
+func (lobby *Lobby) handleOwnerDisconnect(user *Client) {
+	lobby.RemoveClient(user)
 
-	lobby.Clients.Delete(user.ID)
-	user.Conn.Close()
-
-	msg := PrepareServerMessage(PLAYER_LEFT_EVENT)
-	msg = append(msg, user.IDBytes...)
-	msg = append(msg, []byte(user.IGN)...)
-
-	lobby.BroadcastMessage(SERVER_ID, msg)
-
-	if user.ID == lobby.OwnerID {
-		// If the lobby owner disconnects, close the lobby and notify everyone
-		log.Println("Lobby owner disconnected, closing lobby", lobby.ID)
-		lobby.close()
-	}
+	log.Println("Lobby owner disconnected, closing lobby: ", lobby.ID)
+	// If the lobby owner disconnects, close the lobby and notify everyone
+	lobby.close()
 }
 
-// close the lobby and clean up resources. Shunts all client connections
+// Remove a client from the lobby and notify all other clients
 //
-// # Adds lobby to lobby manager closing channel
+// Also closes the clients web socket connection
+func (lobby *Lobby) RemoveClient(client *Client) {
+	client, exists := lobby.Clients.Load(client.ID)
+	if !exists {
+		log.Printf("[lobby] User %d not found in lobby %d", client.ID, lobby.ID)
+		return
+	}
+
+	lobby.Clients.Delete(client.ID)
+	client.Conn.Close()
+
+	msg := PrepareServerMessage(PLAYER_LEFT_EVENT)
+	msg = append(msg, client.IDBytes...)
+	msg = append(msg, []byte(client.IGN)...)
+
+	lobby.BroadcastMessage(SERVER_ID, msg)
+}
+
+// Notify all clients in the lobby that the lobby is closing
+//
+// Adds lobby to lobby manager closing channel
 func (lobby *Lobby) close() {
 	lobby.BroadcastMessage(SERVER_ID, PrepareServerMessage(LOBBY_CLOSING_EVENT))
 	lobby.Closing.Store(true)
+	lobby.CloseQueue <- lobby
+}
+
+// Only called indirectly by the lobby manager while it is processing the close queue
+func (lobby *Lobby) shutdown() {
 	lobby.Clients.Range(func(key ClientID, value *Client) bool {
 		value.Conn.Close()
 		return true
 	})
-	lobby.CloseQueue <- lobby
 }
 
 func (lobby *Lobby) ClientCount() int {

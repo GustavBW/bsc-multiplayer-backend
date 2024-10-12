@@ -74,7 +74,7 @@ func (lm *LobbyManager) UnregisterLobby(lobby *Lobby) {
 
 	lobby, exists := lm.Lobbies.LoadAndDelete(lobby.ID)
 	if exists {
-		lobby.close()
+		lobby.shutdown()
 		log.Println("Lobby removed, id:", lobby.ID)
 	}
 }
