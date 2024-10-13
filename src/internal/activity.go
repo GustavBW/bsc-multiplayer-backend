@@ -122,6 +122,21 @@ func (ta *ActivityTracker) AdvanceIfAllExpectedParticipantsAreAccountedFor() boo
 	return false
 }
 
+func (ta *ActivityTracker) MarkPlayerAsReady(client *Client) {
+	if prevVal, exists := ta.playerReadyTracker.playersToAccountFor.Swap(client.ID, true); exists && !prevVal {
+		ta.playerReadyTracker.playersAccountedFor.Add(1)
+	}
+}
+
+// Returns true if the phase was advanced
+func (ta *ActivityTracker) AdvanceIfAllPlayersAreReady() bool {
+	if ta.playerReadyTracker.playersAccountedFor.Load() >= ta.playerReadyTracker.participantSum.Load() {
+		ta.phase.Store(uint32(LOBBY_PHASE_IN_MINIGAME))
+		return true
+	}
+	return false
+}
+
 // To be called when any Game End Event is about to be send to the lobby owner
 //
 // # This will reset all tracked fields

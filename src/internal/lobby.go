@@ -244,11 +244,15 @@ func (l *Lobby) runPostProcess() {
 			l.trackPhaseAwaitingParticipants(messageInfo.Client, messageInfo.Spec, messageInfo.Remainder)
 			// If all players have been accounted for, begin the next phase
 			if l.activityTracker.AdvanceIfAllExpectedParticipantsAreAccountedFor() {
-
+				// Send players declare intent event
+				l.BroadcastMessage(SERVER_ID, PrepareServerMessage(PLAYERS_DECLARE_INTENT_EVENT))
 			}
 		case uint32(LOBBY_PHASE_PLAYERS_DECLARE_INTENT):
-			if messageInfo.Spec.ID == PLAYER_READY_EVENT.ID {
-
+			l.trackPhasePlayersDeclareIntent(messageInfo.Client, messageInfo.Spec, messageInfo.Remainder)
+			// If all players are ready, begin the next phase
+			if l.activityTracker.AdvanceIfAllPlayersAreReady() {
+				// Send Enter Minigame event
+				l.BroadcastMessage(SERVER_ID, PrepareServerMessage(MINIGAME_BEGINS_EVENT))
 			}
 		case uint32(LOBBY_PHASE_IN_MINIGAME):
 
@@ -258,6 +262,12 @@ func (l *Lobby) runPostProcess() {
 			if l.currentActivity == nil {
 			}
 		}
+	}
+}
+
+func (l *Lobby) trackPhasePlayersDeclareIntent(client *Client, spec *EventSpecification[any], remainder []byte) {
+	if spec.ID == PLAYER_READY_EVENT.ID {
+		l.activityTracker.MarkPlayerAsReady(client)
 	}
 }
 
