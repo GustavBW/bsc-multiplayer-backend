@@ -46,7 +46,7 @@ func PrepareServerMessage[T any](spec *EventSpecification[T]) []byte {
 // Expects the msg to be raw binary data.
 //
 // # Returns client id, message id, rest of the message
-func ExtractClientIDAndMessageID(msg []byte) (ClientID, *EventSpecification[any], []byte, error) {
+func ExtractMessageHeader(msg []byte) (ClientID, *EventSpecification[any], []byte, error) {
 	if len(msg) < 8 {
 		return 0, nil, []byte{}, fmt.Errorf("message size too small. Must at least include userID (big endian uint32) and messageID (big endian uint32) in that order")
 	}

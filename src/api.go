@@ -68,6 +68,8 @@ func gatherLobbyStateHandler(w http.ResponseWriter, r *http.Request, lobbyManage
 	var response = LobbyStateResponseDTO{
 		ColonyID: lobby.ColonyID,
 		Closing:  lobby.Closing.Load(),
+		Phase:    internal.LobbyPhase(lobby.GetPhase()),
+		Encoding: lobby.Encoding,
 		Clients:  clients,
 	}
 

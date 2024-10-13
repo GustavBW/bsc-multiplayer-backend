@@ -10,7 +10,7 @@ import (
 	"github.com/GustavBW/bsc-multiplayer-backend/src/util"
 )
 
-// Serialize any some data into a struct by the type given in the spec
+// Deserialize any some data into a struct by the type given in the spec
 //
 // Based on remainderOnly, it will either expect the entire message (headers and all)
 // or only the remainder (body) of the message.
@@ -23,7 +23,7 @@ func Deserialize[T any](spec *EventSpecification[T], data []byte, remainderOnly 
 		return nil, fmt.Errorf("expected at least %d bytes, got %d", spec.ExpectedMinSize, len(data))
 	}
 
-	var dest T
+	var dest T // Allocation of new nil-value instantiated copy of T
 
 	t := reflect.TypeOf(dest)
 
@@ -60,6 +60,7 @@ func Deserialize[T any](spec *EventSpecification[T], data []byte, remainderOnly 
 	return &dest, nil
 }
 
+// Extremely unsafe. Use with caution
 func setStructField(strukt interface{}, fieldName string, value interface{}) error {
 	structValue := reflect.ValueOf(strukt)
 	if structValue.Kind() != reflect.Ptr || structValue.Elem().Kind() != reflect.Struct {
@@ -86,6 +87,7 @@ func setStructField(strukt interface{}, fieldName string, value interface{}) err
 	return nil
 }
 
+// Extremely unsafe. Use with caution
 func parseGoTypeFromBytes(data []byte, offset uint32, kind reflect.Kind) (interface{}, error) {
 	if sizeOfSerializedKind(kind) > uint32(len(data))-offset {
 		return nil, fmt.Errorf("not enough data to parse %s", kind)

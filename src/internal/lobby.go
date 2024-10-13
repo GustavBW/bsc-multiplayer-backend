@@ -15,6 +15,20 @@ import (
 
 type LobbyID = uint32
 
+type MessageEntry struct {
+	Client    *Client
+	Remainder []byte
+	Spec      *EventSpecification[any]
+}
+
+func NewMessageEntry(client *Client, remainder []byte, spec *EventSpecification[any]) *MessageEntry {
+	return &MessageEntry{
+		Client:    client,
+		Remainder: remainder,
+		Spec:      spec,
+	}
+}
+
 // Lobby represents a lobby with a set of users
 type Lobby struct {
 	ID       LobbyID
@@ -29,20 +43,24 @@ type Lobby struct {
 	activityTracker  *ActivityTracker
 	currentActivity  *Activity
 	CloseQueue       chan<- *Lobby // Queue on which to register self for closing
+	// Queue of all messages to be further tracked
+	// All messages must have been through all pre-flight checks and handler before being added here
+	PostProcessQueue chan *MessageEntry
 	//Maybe introduce message channel for messages to be sent to the lobby
 }
 
 func NewLobby(id LobbyID, ownerID ClientID, colonyID uint32, encoding meta.MessageEncoding, closeQueue chan<- *Lobby) *Lobby {
 	lobby := &Lobby{
-		ID:              id,
-		OwnerID:         ownerID,
-		ColonyID:        colonyID,
-		Clients:         util.ConcurrentTypedMap[ClientID, *Client]{},
-		Closing:         atomic.Bool{},
-		Encoding:        encoding,
-		activityTracker: NewActivityTracker(),
-		currentActivity: nil,
-		CloseQueue:      closeQueue,
+		ID:               id,
+		OwnerID:          ownerID,
+		ColonyID:         colonyID,
+		Clients:          util.ConcurrentTypedMap[ClientID, *Client]{},
+		Closing:          atomic.Bool{},
+		Encoding:         encoding,
+		activityTracker:  NewActivityTracker(),
+		currentActivity:  nil,
+		CloseQueue:       closeQueue,
+		PostProcessQueue: make(chan *MessageEntry, 1000),
 	}
 
 	switch encoding {
@@ -59,6 +77,8 @@ func NewLobby(id LobbyID, ownerID ClientID, colonyID uint32, encoding meta.Messa
 			return BroadcastMessageBase64(lobby, senderID, message)
 		}
 	}
+
+	go lobby.runPostProcess()
 
 	return lobby
 }
@@ -143,7 +163,7 @@ func (lobby *Lobby) handleConnection(client *Client) {
 			continue
 		}
 
-		clientID, spec, remainder, extractErr := ExtractClientIDAndMessageID(msg)
+		clientID, spec, remainder, extractErr := ExtractMessageHeader(msg)
 		if extractErr != nil {
 			log.Printf("[lobby] Error in message from client id %d: %s", client.ID, extractErr.Error())
 			if cantSendDebugInfo := SendDebugInfoToClient(client, 400, extractErr.Error()); cantSendDebugInfo != nil {
@@ -201,15 +221,47 @@ func (lobby *Lobby) processClientMessage(client *Client, spec *EventSpecificatio
 	}
 
 	client.State.UpdateAny(spec.ID, remainder)
-	if client.Type == ORIGIN_TYPE_OWNER {
-		lobby.updateTrackedActivity(client, spec, remainder)
-	}
+	// Send the message information into the queue
+	lobby.PostProcessQueue <- NewMessageEntry(client, remainder, spec)
 
 	return nil
 }
 
-// Update the ActivityTracker based on the message received
-func (lobby *Lobby) updateTrackedActivity(client *Client, spec *EventSpecification[any], remainder []byte) {
+func (lobby *Lobby) GetPhase() uint32 {
+	return lobby.activityTracker.phase.Load()
+}
+
+func (l *Lobby) runPostProcess() {
+	//Exits when lobby is closing
+	for !l.Closing.Load() {
+		// Blocks until a messageInfo is received
+		messageInfo := <-l.PostProcessQueue
+		switch l.activityTracker.phase.Load() {
+		case uint32(LOBBY_PHASE_ROAMING_COLONY):
+			l.trackPhaseRoamningColony(messageInfo.Client, messageInfo.Spec, messageInfo.Remainder)
+
+		case uint32(LOBBY_PHASE_AWAITING_PARTICIPANTS):
+			l.trackPhaseAwaitingParticipants(messageInfo.Client, messageInfo.Spec, messageInfo.Remainder)
+			// If all players have been accounted for, begin the next phase
+			if l.activityTracker.AdvanceIfAllExpectedParticipantsAreAccountedFor() {
+
+			}
+		case uint32(LOBBY_PHASE_PLAYERS_DECLARE_INTENT):
+			if messageInfo.Spec.ID == PLAYER_READY_EVENT.ID {
+
+			}
+		case uint32(LOBBY_PHASE_IN_MINIGAME):
+
+		}
+
+		if l.activityTracker.lockedIn.Load() {
+			if l.currentActivity == nil {
+			}
+		}
+	}
+}
+
+func (l *Lobby) trackPhaseRoamningColony(client *Client, spec *EventSpecification[any], remainder []byte) {
 	switch spec.ID {
 	case DIFFICULTY_SELECT_FOR_MINIGAME_EVENT.ID:
 		deserialized, err := Deserialize(DIFFICULTY_SELECT_FOR_MINIGAME_EVENT, remainder, true)
@@ -218,8 +270,8 @@ func (lobby *Lobby) updateTrackedActivity(client *Client, spec *EventSpecificati
 			SendDebugInfoToClient(client, 400, "Error deserializing message: "+err.Error())
 			return
 		}
-		if !(lobby.activityTracker.ChangeActivityID(deserialized.MinigameID) &&
-			lobby.activityTracker.ChangeDifficultyID(deserialized.DifficultyID)) {
+		if !(l.activityTracker.ChangeActivityID(deserialized.MinigameID) &&
+			l.activityTracker.ChangeDifficultyID(deserialized.DifficultyID)) {
 			log.Printf("[lobby] Error changing activity or difficulty for activity because the tracker is locked. Message from %d", client.ID)
 			SendDebugInfoToClient(client, 400, "Cannot change activity or difficulty for activity because the activity has been locked in already")
 		}
@@ -231,25 +283,33 @@ func (lobby *Lobby) updateTrackedActivity(client *Client, spec *EventSpecificati
 			SendDebugInfoToClient(client, 400, "Error deserializing message: "+err.Error())
 			return
 		}
-		if lobby.activityTracker.ChangeActivityID(deserialized.MinigameID) &&
-			lobby.activityTracker.ChangeDifficultyID(deserialized.DifficultyID) {
-			lobby.activityTracker.LockIn()
+		if l.activityTracker.ChangeActivityID(deserialized.MinigameID) &&
+			l.activityTracker.ChangeDifficultyID(deserialized.DifficultyID) {
+			if !l.activityTracker.LockIn(uint32(l.ClientCount())) {
+				log.Println("How?! (Concurrency bug) lobby.trackPhaseRoamingColony")
+			}
 		} else {
 			log.Printf("[lobby] Multiple lock in attempts ignored: Activity ID and Difficulty ID has already been locked in. Message from %d", client.ID)
 			SendDebugInfoToClient(client, 400, "Multiple lock in attempts ignored: Activity ID and Difficulty ID has already been locked in")
 		}
+	}
+}
+
+func (l *Lobby) trackPhaseAwaitingParticipants(client *Client, spec *EventSpecification[any], remainder []byte) {
+	switch spec.ID {
 	case PLAYER_JOIN_ACTIVITY_EVENT.ID:
-		if !lobby.activityTracker.AddParticipant(client) {
+		if !l.activityTracker.AddParticipant(client) {
 			log.Printf("[lobby] Error adding participant to activity because it is not yet locked in. Message from %d", client.ID)
 			SendDebugInfoToClient(client, 400, "Cannot add participant to activity because the Activity is not yet locked in")
 		}
 		//TODO: When all clients in lobby have joined or opted out, begin the rest of the process
 	case PLAYER_ABORTING_MINIGAME_EVENT.ID, PLAYER_LEFT_EVENT.ID:
-		if !lobby.activityTracker.RemoveParticipant(client) {
+		if !l.activityTracker.RemoveParticipant(client) {
 			log.Printf("[lobby] Error removing participant from activity because it is not yet locked in. Message from %d", client.ID)
 			SendDebugInfoToClient(client, 400, "Cannot remove participant from activity because the Activity is not yet locked in")
 		}
 	}
+
 }
 
 // Handle user disconnection, and close the lobby if the owner disconnects
@@ -288,19 +348,20 @@ func (lobby *Lobby) RemoveClient(client *Client) {
 //
 // Adds lobby to lobby manager closing channel
 func (lobby *Lobby) close() {
-	lobby.BroadcastMessage(SERVER_ID, PrepareServerMessage(LOBBY_CLOSING_EVENT))
 	lobby.Closing.Store(true)
+	lobby.BroadcastMessage(SERVER_ID, PrepareServerMessage(LOBBY_CLOSING_EVENT))
 	lobby.CloseQueue <- lobby
 }
 
 // Only called indirectly by the lobby manager while it is processing the close queue
 func (lobby *Lobby) shutdown() {
 	lobby.Clients.Range(func(key ClientID, value *Client) bool {
-		value.Conn.Close()
+		lobby.RemoveClient(value)
 		return true
 	})
 }
 
+// Approximate
 func (lobby *Lobby) ClientCount() int {
 	var count = 0
 	lobby.Clients.Range(func(key ClientID, value *Client) bool {
