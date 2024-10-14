@@ -347,6 +347,7 @@ func (lobby *Lobby) RemoveClient(client *Client) {
 	lobby.Clients.Delete(client.ID)
 	client.Conn.Close()
 
+	//Todo: Update activity tracker to not count this guy anymore
 	msg := PrepareServerMessage(PLAYER_LEFT_EVENT)
 	msg = append(msg, client.IDBytes...)
 	msg = append(msg, []byte(client.IGN)...)

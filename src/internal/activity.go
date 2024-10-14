@@ -195,16 +195,16 @@ func NewActivityTracker() *ActivityTracker {
 
 // Represents some minigame or other activity that can be played in a lobby
 type Activity struct {
-	ID           uint32
-	Settings     *util.MultiTypeMap[string]
-	participants util.ConcurrentTypedMap[uint32, *Client]
+	ID               uint32
+	ComputedSettings *util.MultiTypeMap[string]
+	participants     util.ConcurrentTypedMap[uint32, *Client]
 }
 
 func NewActivity(id uint32) *Activity {
 	return &Activity{
-		ID:           id,
-		Settings:     util.NewMultiTypeMap[string](),
-		participants: util.ConcurrentTypedMap[uint32, *Client]{},
+		ID:               id,
+		ComputedSettings: util.NewMultiTypeMap[string](),
+		participants:     util.ConcurrentTypedMap[uint32, *Client]{},
 	}
 }
 
