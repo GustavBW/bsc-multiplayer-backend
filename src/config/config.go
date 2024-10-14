@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/GustavBW/bsc-multiplayer-backend/src/meta"
@@ -114,6 +115,14 @@ func LoudGet(key string) (string, error) {
 	}
 	cache[key] = val
 	return val, nil
+}
+
+func GetInt(key string) (int, error) {
+	val, err := LoudGet(key)
+	if err != nil {
+		return 0, err
+	}
+	return strconv.Atoi(val)
 }
 
 // Get func to get env value, will log on error but return the empty value

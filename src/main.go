@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/GustavBW/bsc-multiplayer-backend/src/config"
+	"github.com/GustavBW/bsc-multiplayer-backend/src/integrations"
 	"github.com/GustavBW/bsc-multiplayer-backend/src/internal"
 	"github.com/GustavBW/bsc-multiplayer-backend/src/meta"
 	"github.com/GustavBW/bsc-multiplayer-backend/src/util"
@@ -27,6 +28,11 @@ func main() {
 	if runtimeConfiguration, envErr = config.ParseArgsAndApplyENV(); envErr != nil {
 		//Tool commands end the process before returning here
 		panic(envErr)
+	}
+	// Initializing the singleton
+	_, mbErr := integrations.InitializeMainBackendIntegration()
+	if mbErr != nil {
+		panic(mbErr)
 	}
 	internal.SetServerID(SERVER_ID, SERVER_ID_BYTES)
 
