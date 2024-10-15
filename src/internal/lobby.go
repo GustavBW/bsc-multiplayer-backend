@@ -41,7 +41,7 @@ type Lobby struct {
 	BroadcastMessage func(senderID ClientID, message []byte) []*Client
 	Encoding         meta.MessageEncoding
 	activityTracker  *ActivityTracker
-	currentActivity  *Activity
+	currentActivity  *Activity[any]
 	CloseQueue       chan<- *Lobby // Queue on which to register self for closing
 	// Queue of all messages to be further tracked
 	// All messages must have been through all pre-flight checks and handler before being added here

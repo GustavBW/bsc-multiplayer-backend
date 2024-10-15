@@ -42,6 +42,61 @@ func (v VarType[T]) Int() (int, error) {
 	}
 	return 0, &ErrorTypeMismatch{Expected: reflect.Int, Actual: v.Type}
 }
+func (v VarType[T]) IntOr(fallback int) int {
+	val, err := v.Int()
+	if err != nil {
+		return fallback
+	}
+	return val
+}
+
+func (v VarType[T]) Uint() (uint, error) {
+	val := reflect.ValueOf(v.Value)
+	switch v.Type {
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return uint(val.Uint()), nil
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return uint(val.Int()), nil
+	case reflect.Float32, reflect.Float64:
+		return uint(val.Float()), nil
+	case reflect.String:
+		i, err := strconv.Atoi(val.String())
+		return uint(i), err
+	}
+	return 0, &ErrorTypeMismatch{Expected: reflect.Uint, Actual: v.Type}
+}
+
+func (v VarType[T]) UintOr(fallback uint) uint {
+	val, err := v.Uint()
+	if err != nil {
+		return fallback
+	}
+	return val
+}
+
+func (v VarType[T]) Float32() (float32, error) {
+	val := reflect.ValueOf(v.Value)
+	switch v.Type {
+	case reflect.Float32, reflect.Float64:
+		return float32(val.Float()), nil
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return float32(val.Int()), nil
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return float32(val.Uint()), nil
+	case reflect.String:
+		f, err := strconv.ParseFloat(val.String(), 32)
+		return float32(f), err
+	}
+	return 0, &ErrorTypeMismatch{Expected: reflect.Float32, Actual: v.Type}
+}
+
+func (v VarType[T]) Float32Or(fallback float32) float32 {
+	val, err := v.Float32()
+	if err != nil {
+		return fallback
+	}
+	return val
+}
 
 func (v VarType[T]) Float64() (float64, error) {
 	val := reflect.ValueOf(v.Value)
@@ -58,6 +113,14 @@ func (v VarType[T]) Float64() (float64, error) {
 	return 0, &ErrorTypeMismatch{Expected: reflect.Float64, Actual: v.Type}
 }
 
+func (v VarType[T]) Float64Or(fallback float64) float64 {
+	val, err := v.Float64()
+	if err != nil {
+		return fallback
+	}
+	return val
+}
+
 func (v VarType[T]) String() (string, error) {
 	val := reflect.ValueOf(v.Value)
 	switch v.Type {
@@ -69,6 +132,14 @@ func (v VarType[T]) String() (string, error) {
 		return fmt.Sprintf("%v", v.Value), nil
 	}
 	return "", &ErrorTypeMismatch{Expected: reflect.String, Actual: v.Type}
+}
+
+func (v VarType[T]) StringOr(fallback string) string {
+	val, err := v.String()
+	if err != nil {
+		return fallback
+	}
+	return val
 }
 
 func (v VarType[T]) Bool() (bool, error) {
@@ -83,6 +154,14 @@ func (v VarType[T]) Bool() (bool, error) {
 		return val.Int() != 0, nil
 	}
 	return false, &ErrorTypeMismatch{Expected: reflect.Bool, Actual: v.Type}
+}
+
+func (v VarType[T]) BoolOr(fallback bool) bool {
+	val, err := v.Bool()
+	if err != nil {
+		return fallback
+	}
+	return val
 }
 
 type MultiTypeMap[T comparable] struct {

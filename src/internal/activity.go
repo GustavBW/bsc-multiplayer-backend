@@ -193,25 +193,20 @@ func NewActivityTracker() *ActivityTracker {
 	return tracker
 }
 
+type IActivitySettings interface {
+}
+type GenericGameLoop[T IActivitySettings] func(lobby *Lobby, settings T) func() error
+
 // Represents some minigame or other activity that can be played in a lobby
-type Activity struct {
-	ID               uint32
-	ComputedSettings *util.MultiTypeMap[string]
-	participants     util.ConcurrentTypedMap[uint32, *Client]
+type Activity[T IActivitySettings] struct {
+	ID          uint32
+	GetGameLoop GenericGameLoop[T]
 }
 
-func NewActivity(id uint32) *Activity {
-	return &Activity{
-		ID:               id,
-		ComputedSettings: util.NewMultiTypeMap[string](),
-		participants:     util.ConcurrentTypedMap[uint32, *Client]{},
+func NewActivity[T IActivitySettings](id uint32, gameLoop GenericGameLoop[T]) *Activity[T] {
+	activity := &Activity[T]{
+		ID:          id,
+		GetGameLoop: gameLoop,
 	}
-}
-
-func (a *Activity) AddParticipant(client *Client) {
-	a.participants.Store(client.ID, client)
-}
-
-func (a *Activity) RemoveParticipant(client *Client) {
-	a.participants.Delete(client.ID)
+	return activity
 }
