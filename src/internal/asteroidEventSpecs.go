@@ -14,8 +14,8 @@ type AsteroidSpawnMessageDTO struct {
 
 var ASTEROID_SPAWN_EVENT = NewSpecification[AsteroidSpawnMessageDTO](3000, "AsteroidsAsteroidSpawn", "Sent when the server spawns a new asteroid", SERVER_ONLY, []ShortElementDescriptor{
 	NewElementDescriptor("ID", "id", reflect.Uint32),
-	NewElementDescriptor("X Offset", "x", reflect.Float32),
-	NewElementDescriptor("Y Offset", "y", reflect.Float32),
+	NewElementDescriptor("X Offset, relative 0-1 value to be multiplied with viewport dimensions", "x", reflect.Float32),
+	NewElementDescriptor("Y Offset, relative 0-1 value to be multiplied with viewport dimensions", "y", reflect.Float32),
 	NewElementDescriptor("Health", "health", reflect.Uint8),
 	NewElementDescriptor("Time until impact", "timeUntilImpact", reflect.Uint8),
 	NewElementDescriptor("Asteroid Type", "type", reflect.Uint8),
@@ -34,8 +34,8 @@ type AssignPlayerDataMessageDTO struct {
 var ASSIGN_PLAYER_DATA_EVENT = NewSpecification[AssignPlayerDataMessageDTO](3001, "AsteroidsAssignPlayerData", "Sent to all players when the server has assigned the graphical layout",
 	SERVER_ONLY, []ShortElementDescriptor{
 		NewElementDescriptor("Player ID", "id", reflect.Uint32),
-		NewElementDescriptor("X Position", "x", reflect.Float32),
-		NewElementDescriptor("Y Position", "y", reflect.Float32),
+		NewElementDescriptor("X Position, relative 0-1 value to be multiplied with viewport dimensions", "x", reflect.Float32),
+		NewElementDescriptor("Y Position, relative 0-1 value to be multiplied with viewport dimensions", "y", reflect.Float32),
 		NewElementDescriptor("Tank Type", "type", reflect.Uint8),
 		NewElementDescriptor("CharCode", "code", reflect.String),
 	}, Handlers_IntentionalIgnoreHandler)
