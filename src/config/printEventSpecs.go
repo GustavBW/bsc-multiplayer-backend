@@ -85,6 +85,12 @@ func writeEventSpecsToTSFile(file *os.File) error {
 	})
 	file.WriteString(eventEnum)
 
+	//Player penalty types for Asteroids Minigame
+	file.WriteString("\nexport enum PlayerPenaltyType {\n")
+	file.WriteString(fmt.Sprintf("\tMiss = \"%s\",\n", internal.PLAYER_PENALTY_TYPE_MISS))
+	file.WriteString(fmt.Sprintf("\tFriendlyFire = \"%s\",\n", internal.PLAYER_PENALTY_TYPE_FRIENDLY_FIRE))
+	file.WriteString("};\n\n")
+
 	//Shared Message Parent Interface
 	nameOfSharedMessageParentInterface := "IMessage"
 	file.WriteString("export interface IMessage {\n")
