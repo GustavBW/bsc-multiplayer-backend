@@ -163,6 +163,7 @@ func webSocketConnectionRequestHandler(lobbyManager *internal.LobbyManager, w ht
 
 	if IGN == "" {
 		w.Header().Set("Default-Debug-Header", "IGN query param missing")
+		log.Println("IGN not provided")
 		http.Error(w, "IGN not provided", http.StatusBadRequest)
 		middleware.LogResultOfRequest(w, r, http.StatusBadRequest)
 		return
@@ -170,7 +171,7 @@ func webSocketConnectionRequestHandler(lobbyManager *internal.LobbyManager, w ht
 
 	lobbyID, lobbyIDErr := strconv.ParseUint(lobbyIDStr, 10, 32)
 	if lobbyIDErr != nil {
-		//log.Printf("Error in lobbyID: %s", lobbyIDErr)
+		log.Printf("Error in lobbyID: %s", lobbyIDErr)
 		w.Header().Set("Default-Debug-Header", fmt.Sprintf("Error in lobbyID: %s", lobbyIDErr))
 		http.Error(w, fmt.Sprintf("Error in lobbyID: %s", lobbyIDErr.Error()), http.StatusBadRequest)
 		middleware.LogResultOfRequest(w, r, http.StatusBadRequest)
@@ -180,7 +181,7 @@ func webSocketConnectionRequestHandler(lobbyManager *internal.LobbyManager, w ht
 	userID, userIDErr := strconv.ParseUint(userIDStr, 10, 32)
 
 	if userIDErr != nil {
-		//log.Printf("Error in userID: %s", userIDErr.Error())
+		log.Printf("Error in userID: %s", userIDErr.Error())
 		w.Header().Set("Default-Debug-Header", fmt.Sprintf("Error in clientID: %s", userIDErr))
 		http.Error(w, fmt.Sprintf("Error in clientID: %s", userIDErr.Error()), http.StatusBadRequest)
 		middleware.LogResultOfRequest(w, r, http.StatusBadRequest)
@@ -188,7 +189,7 @@ func webSocketConnectionRequestHandler(lobbyManager *internal.LobbyManager, w ht
 	}
 
 	if err := lobbyManager.IsJoinPossible(uint32(lobbyID), uint32(userID)); err != nil {
-		//log.Printf("Failed to join lobby: %v", err)
+		log.Printf("Failed to join lobby: %v", err)
 		w.Header().Set("Default-Debug-Header", err.Error())
 		switch err.Type {
 		case internal.JoinErrorNotFound:
@@ -216,7 +217,7 @@ func webSocketConnectionRequestHandler(lobbyManager *internal.LobbyManager, w ht
 
 	if joinError := lobbyManager.JoinLobby(uint32(lobbyID), uint32(userID), IGN, conn); joinError != nil {
 		//Send as debug message over WS instead
-		msg := internal.PrepareServerMessage(internal.DEBUG_EVENT)
+		msg := internal.DEBUG_EVENT.CopyIDBytes()
 		msg = append(msg, util.BytesOfUint32(500)...)
 		msg = append(msg, []byte(joinError.Error())...)
 		conn.WriteMessage(websocket.TextMessage, util.EncodeBase16(msg))

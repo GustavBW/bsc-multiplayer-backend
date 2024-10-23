@@ -8,6 +8,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/GustavBW/bsc-multiplayer-backend/src/integrations"
 	"github.com/GustavBW/bsc-multiplayer-backend/src/meta"
 	"github.com/GustavBW/bsc-multiplayer-backend/src/util"
 	"github.com/gorilla/websocket"
@@ -174,12 +175,9 @@ func (lobby *Lobby) handleConnection(client *Client) {
 		}
 		// Although the client object as returned here, should be the same as the one in the input to this method,
 		// just for safety, we fetch the client object from the lobby's client map anyway
-		client, clientExists := lobby.Clients.Load(clientID)
+		_, clientExists := lobby.Clients.Load(clientID)
 		if !clientExists {
 			log.Printf("[lobby] User %d not found in lobby %d", clientID, lobby.ID)
-			if err := SendDebugInfoToClient(client, 401, fmt.Sprintf("Unauthorized: client %d not found in lobby %d", clientID, lobby.ID)); err != nil {
-				break
-			}
 			continue
 		}
 
@@ -245,14 +243,14 @@ func (l *Lobby) runPostProcess() {
 			// If all players have been accounted for, begin the next phase
 			if l.activityTracker.AdvanceIfAllExpectedParticipantsAreAccountedFor() {
 				// Send players declare intent event
-				l.BroadcastMessage(SERVER_ID, PrepareServerMessage(PLAYERS_DECLARE_INTENT_EVENT))
+				l.BroadcastMessage(SERVER_ID, PLAYERS_DECLARE_INTENT_EVENT.CopyIDBytes())
 			}
 		case uint32(LOBBY_PHASE_PLAYERS_DECLARE_INTENT):
 			l.trackPhasePlayersDeclareIntent(messageInfo.Client, messageInfo.Spec, messageInfo.Remainder)
 			// If all players are ready, begin the next phase
 			if l.activityTracker.AdvanceIfAllPlayersAreReady() {
 				// Send Enter Minigame event
-				l.BroadcastMessage(SERVER_ID, PrepareServerMessage(MINIGAME_BEGINS_EVENT))
+				l.BroadcastMessage(SERVER_ID, MINIGAME_BEGINS_EVENT.CopyIDBytes())
 			}
 		case uint32(LOBBY_PHASE_IN_MINIGAME):
 
@@ -327,8 +325,6 @@ func (lobby *Lobby) handleGuestDisconnect(user *Client) {
 	lobby.RemoveClient(user)
 }
 func (lobby *Lobby) handleOwnerDisconnect(user *Client) {
-	lobby.RemoveClient(user)
-
 	log.Println("Lobby owner disconnected, closing lobby: ", lobby.ID)
 	// If the lobby owner disconnects, close the lobby and notify everyone
 	lobby.close()
@@ -340,7 +336,7 @@ func (lobby *Lobby) handleOwnerDisconnect(user *Client) {
 func (lobby *Lobby) RemoveClient(client *Client) {
 	client, exists := lobby.Clients.Load(client.ID)
 	if !exists {
-		log.Printf("[lobby] User %d not found in lobby %d", client.ID, lobby.ID)
+		log.Printf("[lobby] User %v not found in lobby %d", client, lobby.ID)
 		return
 	}
 
@@ -348,7 +344,7 @@ func (lobby *Lobby) RemoveClient(client *Client) {
 	client.Conn.Close()
 
 	//Todo: Update activity tracker to not count this guy anymore
-	msg := PrepareServerMessage(PLAYER_LEFT_EVENT)
+	msg := PLAYER_LEFT_EVENT.CopyIDBytes()
 	msg = append(msg, client.IDBytes...)
 	msg = append(msg, []byte(client.IGN)...)
 
@@ -360,12 +356,17 @@ func (lobby *Lobby) RemoveClient(client *Client) {
 // Adds lobby to lobby manager closing channel
 func (lobby *Lobby) close() {
 	lobby.Closing.Store(true)
-	lobby.BroadcastMessage(SERVER_ID, PrepareServerMessage(LOBBY_CLOSING_EVENT))
+	lobby.BroadcastMessage(SERVER_ID, LOBBY_CLOSING_EVENT.CopyIDBytes())
+	err := integrations.GetMainBackendIntegration().CloseColony(lobby.ColonyID, lobby.OwnerID)
+	if err != nil {
+		log.Printf("[lobby] Error closing colony %d: %v", lobby.ColonyID, err)
+	}
 	lobby.CloseQueue <- lobby
 }
 
 // Only called indirectly by the lobby manager while it is processing the close queue
 func (lobby *Lobby) shutdown() {
+	log.Println("[lobby] Shutting down lobby: ", lobby.ID)
 	lobby.Clients.Range(func(key ClientID, value *Client) bool {
 		lobby.RemoveClient(value)
 		return true

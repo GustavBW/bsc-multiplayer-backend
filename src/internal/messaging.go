@@ -20,10 +20,11 @@ func SetServerID(id uint32, idBytes []byte) {
 
 // When the server writes to the client, it sends a string and uses own id and debug message id 00...00
 func SendDebugInfoToClient(client *Client, code uint32, message string) error {
-	var messageBody = PrepareServerMessage(DEBUG_EVENT)
+	var messageBody = DEBUG_EVENT.CopyIDBytes()
 	var withCode = append(messageBody, util.BytesOfUint32(code)...)
 	var withMessage = append(withCode, []byte(message)...)
 	var isBinary = true
+	log.Println("Sending debug info, client encoding is: ", client.String())
 	switch client.Encoding {
 	case meta.MESSAGE_ENCODING_BASE16:
 		isBinary = false
@@ -34,11 +35,6 @@ func SendDebugInfoToClient(client *Client, code uint32, message string) error {
 	}
 
 	return client.Conn.WriteMessage(util.Ternary(isBinary, websocket.BinaryMessage, websocket.TextMessage), withMessage)
-}
-
-// Appends the message id and server id to a new byte array
-func PrepareServerMessage[T any](spec *EventSpecification[T]) []byte {
-	return util.CopyAndAppend(SERVER_ID_BYTES, spec.IDBytes)
 }
 
 // Extracts the client id and message id from a message, also verifies the length of the message
@@ -52,7 +48,9 @@ func ExtractMessageHeader(msg []byte) (ClientID, *EventSpecification[any], []byt
 	}
 	// Extract userID and messageID (uint32)
 	userID := binary.BigEndian.Uint32(msg[:4]) // 0, 1 2 3
+	log.Println("Extracted userID: ", userID)
 	messageID := binary.BigEndian.Uint32(msg[4:8])
+	log.Println("Extracted messageID: ", messageID)
 
 	var spec *EventSpecification[any]
 	var specExists bool
@@ -105,12 +103,14 @@ func BroadcastMessageBase64(lobby *Lobby, senderID ClientID, message []byte) []*
 // Prepends senderID
 func broadcast(lobby *Lobby, senderID ClientID, message []byte, messageType int) []*Client {
 	var unreachableClients []*Client
+	var replicationCount = 0
 
 	wSenderID := util.BytesOfUint32(uint32(senderID))
 	message = append(wSenderID, message...)
 	lobby.Clients.Range(func(userID ClientID, user *Client) bool {
 		if userID != senderID {
 			err := user.Conn.WriteMessage(messageType, message)
+			replicationCount++
 			if err != nil {
 				log.Println("[messaging] Error sending message to user:", userID, err)
 				unreachableClients = append(unreachableClients, user)
@@ -118,5 +118,7 @@ func broadcast(lobby *Lobby, senderID ClientID, message []byte, messageType int)
 		}
 		return true
 	})
+
+	log.Println("Broadcasting message to lobby, senderID: ", senderID, " replication count: ", replicationCount)
 	return unreachableClients
 }

@@ -21,6 +21,10 @@ type RuntimeConfiguration struct {
 	Encoding MessageEncoding
 }
 
+func (rc *RuntimeConfiguration) ToString() string {
+	return "mode: " + string(rc.Mode) + " encoding: " + string(rc.Encoding)
+}
+
 func NewRuntimeConfiguration(mode RuntimeMode, encoding MessageEncoding) *RuntimeConfiguration {
 	return &RuntimeConfiguration{
 		Mode:     mode,

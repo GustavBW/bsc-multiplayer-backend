@@ -23,7 +23,7 @@ type LobbyManager struct {
 func CreateLobbyManager(runtimeConfiguration *meta.RuntimeConfiguration) *LobbyManager {
 	lm := &LobbyManager{
 		Lobbies:           util.ConcurrentTypedMap[LobbyID, *Lobby]{},
-		nextLobbyID:       0,
+		nextLobbyID:       1,
 		acceptsNewLobbies: true,
 		CloseQueue:        make(chan *Lobby, 10), // A queue to handle closing lobbies
 		configuration:     runtimeConfiguration,
@@ -60,7 +60,7 @@ func (lm *LobbyManager) ShutdownLobbyManager() {
 
 	// Close all lobbies
 	lm.Lobbies.Range(func(key LobbyID, value *Lobby) bool {
-		value.BroadcastMessage(SERVER_ID, PrepareServerMessage(SERVER_CLOSING_EVENT))
+		value.BroadcastMessage(SERVER_ID, SERVER_CLOSING_EVENT.CopyIDBytes())
 		value.close()
 		return true
 	})
@@ -154,17 +154,17 @@ func (lm *LobbyManager) JoinLobby(lobbyID LobbyID, clientID ClientID, clientIGN 
 		return &LobbyJoinError{Reason: "User is already in lobby", Type: JoinErrorAlreadyInLobby, LobbyID: lobbyID}
 	}
 
-	user := NewClient(clientID, clientIGN, util.Ternary(lobby.OwnerID == clientID, ORIGIN_TYPE_OWNER, ORIGIN_TYPE_GUEST), conn, lobby.Encoding)
+	client := NewClient(clientID, clientIGN, util.Ternary(lobby.OwnerID == clientID, ORIGIN_TYPE_OWNER, ORIGIN_TYPE_GUEST), conn, lobby.Encoding)
 
-	userJoinedMsg := PrepareServerMessage(PLAYER_JOINED_EVENT)
-	userJoinedMsg = append(userJoinedMsg, user.IDBytes...)
-	userJoinedMsg = append(userJoinedMsg, []byte(user.IGN)...)
+	userJoinedMsg := PLAYER_JOINED_EVENT.CopyIDBytes()
+	userJoinedMsg = append(userJoinedMsg, client.IDBytes...)
+	userJoinedMsg = append(userJoinedMsg, []byte(client.IGN)...)
 	//Broadcasting before we add the client to the lobbies client map
 	lobby.BroadcastMessage(SERVER_ID, userJoinedMsg)
 
-	lobby.Clients.Store(clientID, user)
+	lobby.Clients.Store(client.ID, client)
 	// Handle the user's connection
-	go lobby.handleConnection(user)
+	go lobby.handleConnection(client)
 
 	return nil
 }

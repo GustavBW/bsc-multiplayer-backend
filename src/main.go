@@ -29,8 +29,17 @@ func main() {
 		//Tool commands end the process before returning here
 		panic(envErr)
 	}
+	log.Println("[main] Configuration loaded: ", runtimeConfiguration.ToString())
+	port, portErr := config.GetInt("MAIN_BACKEND_PORT")
+	if portErr != nil {
+		panic("Error getting MAIN_BACKEND_PORT" + portErr.Error())
+	}
+	host, hostErr := config.LoudGet("MAIN_BACKEND_HOST")
+	if hostErr != nil {
+		panic("Error getting MAIN_BACKEND_HOST" + hostErr.Error())
+	}
 	// Initializing the singleton
-	_, mbErr := integrations.InitializeMainBackendIntegration()
+	_, mbErr := integrations.InitializeMainBackendIntegration(host, port)
 	if mbErr != nil {
 		panic(mbErr)
 	}

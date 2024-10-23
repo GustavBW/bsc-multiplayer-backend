@@ -45,6 +45,12 @@ type EventSpecification[T any] struct {
 	Structure ComputedStructure
 }
 
+func (eSpec *EventSpecification[T]) CopyIDBytes() []byte {
+	var dest = make([]byte, 4)
+	copy(eSpec.IDBytes, dest)
+	return dest
+}
+
 // The Handler defines what the server should do when it recieves a message of this type.
 // Which, for all server-only events, is nothing.
 func NewSpecification[T any](id MessageID, name string, comment string, whoMaySend map[OriginType]bool,

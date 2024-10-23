@@ -2,10 +2,12 @@ package internal
 
 import (
 	"encoding/binary"
+	"fmt"
 	"sync/atomic"
 	"time"
 
 	"github.com/GustavBW/bsc-multiplayer-backend/src/meta"
+	"github.com/GustavBW/bsc-multiplayer-backend/src/util"
 	"github.com/gorilla/websocket"
 )
 
@@ -56,6 +58,10 @@ type Client struct {
 	Conn     *websocket.Conn
 }
 
+func (c *Client) String() string {
+	return fmt.Sprintf("%d (%s) %s encoding: %s", c.ID, c.IGN, c.Type, c.Encoding)
+}
+
 func NewDisclosedClientState() *DisclosedClientState {
 	return &DisclosedClientState{
 		LastKnownPosition: atomic.Uint32{},
@@ -64,11 +70,9 @@ func NewDisclosedClientState() *DisclosedClientState {
 }
 
 func NewClient(id ClientID, IGN string, clientType OriginType, conn *websocket.Conn, encoding meta.MessageEncoding) *Client {
-	userIDBytes := make([]byte, 4)
-	binary.BigEndian.PutUint32(userIDBytes, id)
 	return &Client{
 		ID:       id,
-		IDBytes:  userIDBytes,
+		IDBytes:  util.BytesOfUint32(id),
 		IGN:      IGN,
 		Type:     clientType,
 		Conn:     conn,

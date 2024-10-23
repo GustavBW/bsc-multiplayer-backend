@@ -1,16 +1,17 @@
 package integrations
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
-
-	"github.com/GustavBW/bsc-multiplayer-backend/src/config"
+	"time"
 )
 
 type MainBackendIntegration struct {
-	host string
-	port int
+	host    string
+	port    int
+	baseURL string
 }
 
 var singleton *MainBackendIntegration
@@ -24,8 +25,45 @@ type MBMinigameSettingsDTO struct {
 	OverwritingSettings string `json:"overwritingSettings"`
 }
 
+type CloseColonyRequest struct {
+	PlayerID uint32 `json:"playerId"`
+}
+
+func (m *MainBackendIntegration) CloseColony(colonyID uint32, ownerID uint32) error {
+	url := fmt.Sprintf(m.baseURL+"/colony/%d/close", colonyID)
+
+	reqBody := CloseColonyRequest{
+		PlayerID: ownerID,
+	}
+
+	reqBodyBytes, err := json.Marshal(reqBody)
+	if err != nil {
+		return fmt.Errorf("error marshalling request body: %s", err.Error())
+	}
+
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(reqBodyBytes))
+	if err != nil {
+		return fmt.Errorf("error creating request: %s", err.Error())
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("error sending request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
 func (m *MainBackendIntegration) GetMinigameSettings(minigameID uint32, difficultyID uint32) (*MBMinigameSettingsDTO, error) {
-	url := fmt.Sprintf("http://%s:%d/minigame/%d/settings/%d", m.host, m.port, minigameID, difficultyID)
+	url := fmt.Sprintf(m.baseURL+"/minigame/%d/settings/%d", minigameID, difficultyID)
 
 	resp, err := http.Get(url)
 	if err != nil {
@@ -46,18 +84,11 @@ func (m *MainBackendIntegration) GetMinigameSettings(minigameID uint32, difficul
 	return &res, nil
 }
 
-func InitializeMainBackendIntegration() (*MainBackendIntegration, error) {
-	port, portErr := config.GetInt("MAIN_BACKEND_PORT")
-	if portErr != nil {
-		return nil, fmt.Errorf("Error getting MAIN_BACKEND_PORT" + portErr.Error())
-	}
-	host, hostErr := config.LoudGet("MAIN_BACKEND_HOST")
-	if hostErr != nil {
-		return nil, fmt.Errorf("Error getting MAIN_BACKEND_HOST" + hostErr.Error())
-	}
+func InitializeMainBackendIntegration(mbHost string, mbPort int) (*MainBackendIntegration, error) {
 	singleton = &MainBackendIntegration{
-		host: host,
-		port: port,
+		host:    mbHost,
+		port:    mbPort,
+		baseURL: fmt.Sprintf("http://%s:%d", mbHost, mbPort),
 	}
 	return singleton, nil
 }
