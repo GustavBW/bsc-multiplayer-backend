@@ -1,12 +1,13 @@
 package internal
 
 import (
-	"encoding/binary"
 	"fmt"
 	"log"
 	"reflect"
 	"strings"
 	"unsafe"
+
+	"github.com/GustavBW/bsc-multiplayer-backend/src/util"
 )
 
 type MessageID = uint32
@@ -56,25 +57,18 @@ func (eSpec *EventSpecification[T]) CopyIDBytes() []byte {
 func NewSpecification[T any](id MessageID, name string, comment string, whoMaySend map[OriginType]bool,
 	structure ReferenceStructure, handler AbstractEventHandler[T]) *EventSpecification[T] {
 
-	var idAsBytes = make([]byte, 4)
-	binary.BigEndian.PutUint32(idAsBytes, id)
-	minimumSize, computed := ComputeStructure(name, structure)
+	var idAsBytes = util.BytesOfUint32(id)
+	minContentSize, computed := ComputeStructure(name, structure)
 	return &EventSpecification[T]{
 		Name:            name,
 		SendPermissions: whoMaySend,
 		ID:              id,
 		Handler:         handler,
 		IDBytes:         idAsBytes,
-		ExpectedMinSize: minimumSize + 8, // 8 bytes for the user id and event id at the start
+		ExpectedMinSize: minContentSize + MESSAGE_HEADER_SIZE,
 		Structure:       computed,
 		Comment:         comment,
 	}
-}
-
-var ALL_ALLOWED = map[OriginType]bool{
-	ORIGIN_TYPE_GUEST:  true,
-	ORIGIN_TYPE_OWNER:  true,
-	ORIGIN_TYPE_SERVER: true,
 }
 
 var OWNER_ONLY = map[OriginType]bool{
@@ -95,7 +89,7 @@ var OWNER_AND_GUESTS = map[OriginType]bool{
 	ORIGIN_TYPE_SERVER: false,
 }
 
-var DEBUG_EVENT = NewSpecification[DebugEventMessageDTO](0, "DebugInfo", "For debug messages", ALL_ALLOWED, []ShortElementDescriptor{
+var DEBUG_EVENT = NewSpecification[DebugEventMessageDTO](0, "DebugInfo", "For debug messages", SERVER_ONLY, []ShortElementDescriptor{
 	NewElementDescriptor("HTTP Code (if applicable)", "code", reflect.Uint32),
 	NewElementDescriptor("Debug message", "message", reflect.String),
 }, Handlers_OnDebugMessageRecieved)

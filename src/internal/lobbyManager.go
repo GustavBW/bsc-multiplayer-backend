@@ -3,7 +3,7 @@ package internal
 import (
 	"fmt"
 	"log"
-	"sync"
+	"sync/atomic"
 
 	"github.com/GustavBW/bsc-multiplayer-backend/src/meta"
 	"github.com/GustavBW/bsc-multiplayer-backend/src/util"
@@ -13,9 +13,8 @@ import (
 // LobbyManager manages all the lobbies
 type LobbyManager struct {
 	Lobbies           util.ConcurrentTypedMap[LobbyID, *Lobby]
-	nextLobbyID       LobbyID
-	Sync              sync.Mutex
-	acceptsNewLobbies bool
+	nextLobbyID       atomic.Uint32
+	acceptsNewLobbies atomic.Bool
 	CloseQueue        chan *Lobby // Queue of lobbies that need to be closed
 	configuration     *meta.RuntimeConfiguration
 }
@@ -23,11 +22,13 @@ type LobbyManager struct {
 func CreateLobbyManager(runtimeConfiguration *meta.RuntimeConfiguration) *LobbyManager {
 	lm := &LobbyManager{
 		Lobbies:           util.ConcurrentTypedMap[LobbyID, *Lobby]{},
-		nextLobbyID:       1,
-		acceptsNewLobbies: true,
+		acceptsNewLobbies: atomic.Bool{},
+		nextLobbyID:       atomic.Uint32{},
 		CloseQueue:        make(chan *Lobby, 10), // A queue to handle closing lobbies
 		configuration:     runtimeConfiguration,
 	}
+	lm.nextLobbyID.Store(1)
+	lm.acceptsNewLobbies.Store(true)
 
 	go lm.processClosures() // Start a goroutine to process lobby closures
 	return lm
@@ -52,9 +53,7 @@ func (lm *LobbyManager) processClosures() {
 }
 
 func (lm *LobbyManager) ShutdownLobbyManager() {
-	lm.Sync.Lock()
-	lm.acceptsNewLobbies = false
-	defer lm.Sync.Unlock()
+	lm.acceptsNewLobbies.Store(false)
 
 	log.Printf("[lob man] Shutting down %d lobbies", lm.GetLobbyCount())
 
@@ -81,10 +80,7 @@ func (lm *LobbyManager) UnregisterLobby(lobby *Lobby) {
 
 // Create a new lobby and assign an owner
 func (lm *LobbyManager) CreateLobby(ownerID ClientID, colonyID uint32, userSetEncoding meta.MessageEncoding) (*Lobby, error) {
-	lm.Sync.Lock()
-	defer lm.Sync.Unlock()
-
-	if !lm.acceptsNewLobbies {
+	if !lm.acceptsNewLobbies.Load() {
 		return nil, fmt.Errorf("[lob man] Lobby manager is not accepting new lobbies at this point")
 	}
 
@@ -101,8 +97,7 @@ func (lm *LobbyManager) CreateLobby(ownerID ClientID, colonyID uint32, userSetEn
 		return existingLobby, nil
 	}
 
-	lobbyID := lm.nextLobbyID
-	lm.nextLobbyID++
+	lobbyID := lm.nextLobbyID.Add(1)
 
 	var encodingToUse meta.MessageEncoding = userSetEncoding
 	//If no encoding is given, use whatever the lm is set to
@@ -141,7 +136,6 @@ func (lm *LobbyManager) IsJoinPossible(lobbyID LobbyID, clientID ClientID) *Lobb
 func (lm *LobbyManager) JoinLobby(lobbyID LobbyID, clientID ClientID, clientIGN string, conn *websocket.Conn) *LobbyJoinError {
 	lobby, exists := lm.Lobbies.Load(lobbyID)
 	if !exists {
-		lm.Sync.Unlock()
 		return &LobbyJoinError{Reason: "Lobby does not exist", Type: JoinErrorNotFound, LobbyID: lobbyID}
 	}
 

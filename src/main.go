@@ -55,6 +55,9 @@ func main() {
 	mux := http.NewServeMux()
 
 	applyPublicApi(mux, lobbyManager)
+	if runtimeConfiguration.Mode == meta.RUNTIME_MODE_DEV {
+		applyDevAPI(mux, lobbyManager)
+	}
 
 	go startServer(mux)
 

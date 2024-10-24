@@ -2,6 +2,7 @@ package integrations
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -48,24 +49,38 @@ func (m *MainBackendIntegration) CloseColony(colonyID uint32, ownerID uint32) er
 
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := getConfiguredClient().Do(req)
 	if err != nil {
 		return fmt.Errorf("error sending request: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		return fmt.Errorf("unexpected status code: %d, headers: %s", resp.StatusCode, resp.Header)
 	}
 
 	return nil
 }
 
+func getConfiguredClient() *http.Client {
+	return &http.Client{
+		Timeout: 10 * time.Second,
+		Transport: &http.Transport{
+			DisableKeepAlives:   false,
+			MaxIdleConns:        10,
+			MaxIdleConnsPerHost: 10,
+			IdleConnTimeout:     30 * time.Second,
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true, // This skips certificate verification
+			},
+		},
+	}
+}
+
 func (m *MainBackendIntegration) GetMinigameSettings(minigameID uint32, difficultyID uint32) (*MBMinigameSettingsDTO, error) {
 	url := fmt.Sprintf(m.baseURL+"/minigame/%d/settings/%d", minigameID, difficultyID)
 
-	resp, err := http.Get(url)
+	resp, err := getConfiguredClient().Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("error getting minigame settings: %s", err.Error())
 	}
@@ -88,7 +103,7 @@ func InitializeMainBackendIntegration(mbHost string, mbPort int) (*MainBackendIn
 	singleton = &MainBackendIntegration{
 		host:    mbHost,
 		port:    mbPort,
-		baseURL: fmt.Sprintf("http://%s:%d", mbHost, mbPort),
+		baseURL: fmt.Sprintf("https://%s:%d/api/v1", mbHost, mbPort),
 	}
 	return singleton, nil
 }
