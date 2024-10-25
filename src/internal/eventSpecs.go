@@ -89,23 +89,26 @@ var OWNER_AND_GUESTS = map[OriginType]bool{
 	ORIGIN_TYPE_SERVER: false,
 }
 
-var DEBUG_EVENT = NewSpecification[DebugEventMessageDTO](0, "DebugInfo", "For debug messages", SERVER_ONLY, []ShortElementDescriptor{
+var DEBUG_EVENT = NewSpecification[DebugEventMessageDTO](1, "DebugInfo", "For debug messages", SERVER_ONLY, []ShortElementDescriptor{
 	NewElementDescriptor("HTTP Code (if applicable)", "code", reflect.Uint32),
 	NewElementDescriptor("Debug message", "message", reflect.String),
 }, Handlers_OnDebugMessageRecieved)
 
+var SERVER_CLOSING_EVENT = NewSpecification[EmptyDTO](2, "ServerClosing", "Sent when the server shuts down, followed by LOBBY CLOSING",
+	SERVER_ONLY, REFERENCE_STRUCTURE_EMPTY, Handlers_IntentionalIgnoreHandler)
+
 // Full range: 0 to 4,294,967,295
 //
-// 0: DebugInfo
+// 1-10: System events, 0 is the nil value for uint32, so it's not used
 //
-// 1-999: Lobby Management
+// 11-999: Lobby Management
 //
 // 1000-1999: Colony Events
 //
 // 2000-2999: Minigame Initiation Events
 //
 // 1_000_000_000+: Game Events
-var ALL_EVENTS = NewSpecMap(DEBUG_EVENT)
+var ALL_EVENTS = NewSpecMap(DEBUG_EVENT, SERVER_CLOSING_EVENT)
 
 // Use only with instances of EventSpecification[T extends any]
 //
@@ -132,24 +135,21 @@ func NewSpecMap(events ...interface{}) map[MessageID]*EventSpecification[any] {
 	return result
 }
 
-var PLAYER_JOINED_EVENT = NewSpecification[PlayerJoinedMessageDTO](1, "PlayerJoined", "Sent when a player joins the lobby", SERVER_ONLY, []ShortElementDescriptor{
+var PLAYER_JOINED_EVENT = NewSpecification[PlayerJoinedMessageDTO](11, "PlayerJoined", "Sent when a player joins the lobby", SERVER_ONLY, []ShortElementDescriptor{
 	NewElementDescriptor("Player ID", "id", reflect.Uint32),
 	NewElementDescriptor("Player IGN", "ign", reflect.String),
 }, Handlers_IntentionalIgnoreHandler) // Handled internally
 
-var PLAYER_LEFT_EVENT = NewSpecification[PlayerLeftMessageDTO](5, "PlayerLeft", "Sent when a player leaves the lobby", SERVER_ONLY, []ShortElementDescriptor{
+var PLAYER_LEFT_EVENT = NewSpecification[PlayerLeftMessageDTO](12, "PlayerLeft", "Sent when a player leaves the lobby", SERVER_ONLY, []ShortElementDescriptor{
 	NewElementDescriptor("Player ID", "id", reflect.Uint32),
 	NewElementDescriptor("Player IGN", "ign", reflect.String),
 }, Handlers_IntentionalIgnoreHandler) // Handled internally
 
-var LOBBY_CLOSING_EVENT = NewSpecification[EmptyDTO](6, "LobbyClosing", "Sent when the lobby closes", SERVER_ONLY,
+var LOBBY_CLOSING_EVENT = NewSpecification[EmptyDTO](13, "LobbyClosing", "Sent when the lobby closes", SERVER_ONLY,
 	REFERENCE_STRUCTURE_EMPTY, Handlers_IntentionalIgnoreHandler)
 
-var SERVER_CLOSING_EVENT = NewSpecification[EmptyDTO](8, "ServerClosing", "Sent when the server shuts down, followed by LOBBY CLOSING",
-	SERVER_ONLY, REFERENCE_STRUCTURE_EMPTY, Handlers_IntentionalIgnoreHandler)
-
-// 1-999: Lobby Management
-var LOBBY_MANAGEMENT_EVENTS = NewSpecMap(PLAYER_JOINED_EVENT, PLAYER_LEFT_EVENT, LOBBY_CLOSING_EVENT, SERVER_CLOSING_EVENT)
+// 10-999: Lobby Management
+var LOBBY_MANAGEMENT_EVENTS = NewSpecMap(PLAYER_JOINED_EVENT, PLAYER_LEFT_EVENT, LOBBY_CLOSING_EVENT)
 
 var ENTER_LOCATION_EVENT = NewSpecification[EnterLocationMessageDTO](1001, "EnterLocation", "Send when the owner enters a location", OWNER_ONLY, []ShortElementDescriptor{
 	NewElementDescriptor("Colony Location ID", "id", reflect.Uint32),
