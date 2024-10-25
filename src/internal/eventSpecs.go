@@ -48,7 +48,7 @@ type EventSpecification[T any] struct {
 
 func (eSpec *EventSpecification[T]) CopyIDBytes() []byte {
 	var dest = make([]byte, 4)
-	copy(eSpec.IDBytes, dest)
+	copy(dest, eSpec.IDBytes)
 	return dest
 }
 
