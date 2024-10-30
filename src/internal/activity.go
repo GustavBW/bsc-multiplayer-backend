@@ -22,6 +22,7 @@ const (
 	LOBBY_PHASE_AWAITING_PARTICIPANTS
 	// Awaits player ready from all participants
 	LOBBY_PHASE_PLAYERS_DECLARE_INTENT
+	LOBBY_PHASE_LOADING_MINIGAME
 	// Some minigame is ongoing
 	LOBBY_PHASE_IN_MINIGAME
 )
@@ -40,6 +41,11 @@ type ActivityTracker struct {
 		OptOut              util.ConcurrentTypedMap[ClientID, *Client]
 	}
 	playerReadyTracker struct {
+		playersAccountedFor atomic.Uint32
+		participantSum      atomic.Uint32
+		playersToAccountFor util.ConcurrentTypedMap[ClientID, bool]
+	}
+	playerLoadCompleteTracker struct {
 		playersAccountedFor atomic.Uint32
 		participantSum      atomic.Uint32
 		playersToAccountFor util.ConcurrentTypedMap[ClientID, bool]
@@ -128,10 +134,24 @@ func (ta *ActivityTracker) MarkPlayerAsReady(client *Client) {
 	}
 }
 
+func (ta *ActivityTracker) MarkPlayerAsLoadComplete(client *Client) {
+	if prevVal, exists := ta.playerLoadCompleteTracker.playersToAccountFor.Swap(client.ID, true); exists && prevVal {
+		ta.playerLoadCompleteTracker.playersAccountedFor.Add(1)
+	}
+}
+
+func (ta *ActivityTracker) AdvanceIfAllPlayersHaveLoadedIn() bool {
+	if ta.playerLoadCompleteTracker.playersAccountedFor.Load() >= ta.playerLoadCompleteTracker.participantSum.Load() {
+		ta.phase.Store(uint32(LOBBY_PHASE_IN_MINIGAME))
+		return true
+	}
+	return false
+}
+
 // Returns true if the phase was advanced
 func (ta *ActivityTracker) AdvanceIfAllPlayersAreReady() bool {
 	if ta.playerReadyTracker.playersAccountedFor.Load() >= ta.playerReadyTracker.participantSum.Load() {
-		ta.phase.Store(uint32(LOBBY_PHASE_IN_MINIGAME))
+		ta.phase.Store(uint32(LOBBY_PHASE_LOADING_MINIGAME))
 		return true
 	}
 	return false
@@ -156,6 +176,8 @@ func (ta *ActivityTracker) ReleaseLock() bool {
 	ta.phase.Store(uint32(LOBBY_PHASE_ROAMING_COLONY))
 	ta.playerReadyTracker.playersAccountedFor.Store(0)
 	ta.playerReadyTracker.playersToAccountFor.Clear()
+	ta.playerLoadCompleteTracker.playersAccountedFor.Store(0)
+	ta.playerLoadCompleteTracker.playersToAccountFor.Clear()
 	return true
 }
 
@@ -177,6 +199,15 @@ func NewActivityTracker() *ActivityTracker {
 			OptOut:              util.ConcurrentTypedMap[ClientID, *Client]{},
 		},
 		playerReadyTracker: struct { // Used during PLAYERS_DECLARE_INTENT phase
+			playersAccountedFor atomic.Uint32
+			participantSum      atomic.Uint32
+			playersToAccountFor util.ConcurrentTypedMap[ClientID, bool]
+		}{
+			playersAccountedFor: atomic.Uint32{},
+			participantSum:      atomic.Uint32{},
+			playersToAccountFor: util.ConcurrentTypedMap[ClientID, bool]{},
+		},
+		playerLoadCompleteTracker: struct { // Used during LOBBY_PHASE_PLAYERS_LOADING phase
 			playersAccountedFor atomic.Uint32
 			participantSum      atomic.Uint32
 			playersToAccountFor util.ConcurrentTypedMap[ClientID, bool]

@@ -54,3 +54,12 @@ type PlayerJoinActivityMessageDTO struct {
 	PlayerID uint32 `json:"id"`
 	IGN      string `json:"ign"`
 }
+
+type PlayerLoadFailureMessageDTO struct {
+	Reason string `json:"reason"`
+}
+
+type GenericUntimelyAbortMessageDTO struct {
+	PlayerID uint32 `json:"playerID"`
+	Reason   string `json:"reason"`
+}

@@ -252,6 +252,28 @@ func (l *Lobby) runPostProcess() {
 				// Send Enter Minigame event
 				l.BroadcastMessage(SERVER_ID, MINIGAME_BEGINS_EVENT.CopyIDBytes())
 			}
+		case uint32(LOBBY_PHASE_LOADING_MINIGAME):
+			if messageInfo.Spec.ID == PLAYER_LOAD_FAILURE_EVENT.ID {
+				deserialized, err := Deserialize(PLAYER_LOAD_FAILURE_EVENT, messageInfo.Remainder, true)
+				if err != nil {
+					log.Printf("[lobby] While updating tracked activity: Error deserializing message from clientID %d: %v", messageInfo.Client.ID, err)
+					SendDebugInfoToClient(messageInfo.Client, 400, "Error deserializing message: "+err.Error())
+					return
+				}
+				messageBody := PLAYER_LOAD_FAILURE_EVENT.CopyIDBytes()
+				messageBody = append(messageBody, messageInfo.Client.IDBytes...)
+				messageBody = append(messageBody, []byte(deserialized.Reason)...)
+				l.BroadcastMessage(SERVER_ID, messageBody)
+			}
+
+			if messageInfo.Spec.ID == PLAYER_LOAD_COMPLETE_EVENT.ID {
+				l.activityTracker.MarkPlayerAsLoadComplete(messageInfo.Client)
+			}
+
+			if l.activityTracker.AdvanceIfAllPlayersHaveLoadedIn() {
+				// Send Enter Minigame event
+				l.BroadcastMessage(SERVER_ID, MINIGAME_BEGINS_EVENT.CopyIDBytes())
+			}
 		case uint32(LOBBY_PHASE_IN_MINIGAME):
 
 		}

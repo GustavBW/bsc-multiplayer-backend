@@ -202,8 +202,23 @@ var PLAYER_JOIN_ACTIVITY_EVENT = NewSpecification[PlayerJoinActivityMessageDTO](
 		NewElementDescriptor("Player IGN", "ign", reflect.String),
 	}, Handlers_NoCheckReplicate)
 
+var PLAYER_LOAD_FAILURE_EVENT = NewSpecification[PlayerLoadFailureMessageDTO](2007, "PlayerLoadFailure", "Sent when a player fails to load into the minigame",
+	OWNER_AND_GUESTS, []ShortElementDescriptor{
+		NewElementDescriptor("Reason", "reason", reflect.String),
+	}, Handlers_IntentionalIgnoreHandler)
+
+var GENERIC_MINIGAME_UNTIMELY_ABORT = NewSpecification[GenericUntimelyAbortMessageDTO](2008, "GenericMinigameUntimelyAbort", "Sent when the server has recieved Player Load Failure from any participant",
+	SERVER_ONLY, []ShortElementDescriptor{
+		NewElementDescriptor("Player ID", "id", reflect.Uint32),
+		NewElementDescriptor("Reason", "reason", reflect.String),
+	}, Handlers_IntentionalIgnoreHandler)
+
+var PLAYER_LOAD_COMPLETE_EVENT = NewSpecification[EmptyDTO](2009, "PlayerLoadComplete", "Sent when a given player has finished loading into the minigame",
+	OWNER_AND_GUESTS, REFERENCE_STRUCTURE_EMPTY, Handlers_IntentionalIgnoreHandler)
+
 var MINIGAME_INITIATION_EVENTS = NewSpecMap(DIFFICULTY_SELECT_FOR_MINIGAME_EVENT, DIFFICULTY_CONFIRMED_FOR_MINIGAME_EVENT, PLAYERS_DECLARE_INTENT_EVENT,
-	PLAYER_READY_EVENT, PLAYER_ABORTING_MINIGAME_EVENT, MINIGAME_BEGINS_EVENT, PLAYER_JOIN_ACTIVITY_EVENT)
+	PLAYER_READY_EVENT, PLAYER_ABORTING_MINIGAME_EVENT, MINIGAME_BEGINS_EVENT, PLAYER_JOIN_ACTIVITY_EVENT, PLAYER_LOAD_FAILURE_EVENT,
+	GENERIC_MINIGAME_UNTIMELY_ABORT, PLAYER_LOAD_COMPLETE_EVENT)
 
 // Loads and organises event specification for later use
 // Also checks if there's errors.
