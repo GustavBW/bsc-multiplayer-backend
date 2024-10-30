@@ -134,6 +134,15 @@ func (ta *ActivityTracker) MarkPlayerAsReady(client *Client) {
 	}
 }
 
+// Returns true if the phase was advanced
+func (ta *ActivityTracker) AdvanceIfAllPlayersAreReady() bool {
+	if ta.playerReadyTracker.playersAccountedFor.Load() >= ta.playerReadyTracker.participantSum.Load() {
+		ta.phase.Store(uint32(LOBBY_PHASE_LOADING_MINIGAME))
+		return true
+	}
+	return false
+}
+
 func (ta *ActivityTracker) MarkPlayerAsLoadComplete(client *Client) {
 	if prevVal, exists := ta.playerLoadCompleteTracker.playersToAccountFor.Swap(client.ID, true); exists && prevVal {
 		ta.playerLoadCompleteTracker.playersAccountedFor.Add(1)
@@ -148,37 +157,33 @@ func (ta *ActivityTracker) AdvanceIfAllPlayersHaveLoadedIn() bool {
 	return false
 }
 
-// Returns true if the phase was advanced
-func (ta *ActivityTracker) AdvanceIfAllPlayersAreReady() bool {
-	if ta.playerReadyTracker.playersAccountedFor.Load() >= ta.playerReadyTracker.participantSum.Load() {
-		ta.phase.Store(uint32(LOBBY_PHASE_LOADING_MINIGAME))
-		return true
-	}
-	return false
-}
-
 // To be called when any Game End Event is about to be send to the lobby owner
 //
 // # This will reset all tracked fields
-//
-// Returns false if the tracker wasn't locked
-func (ta *ActivityTracker) ReleaseLock() bool {
+func (ta *ActivityTracker) ReleaseLock() error {
 	if !ta.lockedIn.Load() {
-		return false
+		return nil
 	}
+	ta.lockedIn.Store(false)
+	return ta.Reset()
+}
+
+// Reset all tracked fields
+func (ta *ActivityTracker) Reset() error {
 	ta.activityID.Store(0)
 	ta.difficultyID.Store(0)
 	ta.participantTracker.OptIn.Clear()
 	ta.participantTracker.OptOut.Clear()
 	ta.participantTracker.playersAccountedFor.Store(0)
 	ta.participantTracker.playersToAccountFor.Store(0)
-	ta.lockedIn.Store(false)
 	ta.phase.Store(uint32(LOBBY_PHASE_ROAMING_COLONY))
 	ta.playerReadyTracker.playersAccountedFor.Store(0)
+	ta.playerReadyTracker.participantSum.Store(0)
 	ta.playerReadyTracker.playersToAccountFor.Clear()
 	ta.playerLoadCompleteTracker.playersAccountedFor.Store(0)
+	ta.playerLoadCompleteTracker.participantSum.Store(0)
 	ta.playerLoadCompleteTracker.playersToAccountFor.Clear()
-	return true
+	return nil
 }
 
 func NewActivityTracker() *ActivityTracker {

@@ -234,7 +234,22 @@ func (l *Lobby) runPostProcess() {
 	for !l.Closing.Load() {
 		// Blocks until a messageInfo is received
 		messageInfo := <-l.PostProcessQueue
-		switch l.activityTracker.phase.Load() {
+		currentPhase := l.activityTracker.phase.Load()
+
+		if messageInfo.Spec.ID == GENERIC_MINIGAME_SEQUENCE_RESET.ID {
+			if currentPhase == uint32(LOBBY_PHASE_IN_MINIGAME) {
+				SendDebugInfoToClient(messageInfo.Client, 400, "Cannot reset minigame sequence while in minigame")
+				return
+			} else {
+				if err := l.activityTracker.ReleaseLock(); err != nil {
+					log.Printf("[lobby] Error releasing lock: %v", err)
+					SendDebugInfoToClient(messageInfo.Client, 400, "Error releasing lock: "+err.Error())
+					return
+				}
+			}
+		}
+
+		switch currentPhase {
 		case uint32(LOBBY_PHASE_ROAMING_COLONY):
 			l.trackPhaseRoamningColony(messageInfo.Client, messageInfo.Spec, messageInfo.Remainder)
 
@@ -249,8 +264,8 @@ func (l *Lobby) runPostProcess() {
 			l.trackPhasePlayersDeclareIntent(messageInfo.Client, messageInfo.Spec, messageInfo.Remainder)
 			// If all players are ready, begin the next phase
 			if l.activityTracker.AdvanceIfAllPlayersAreReady() {
-				// Send Enter Minigame event
-				l.BroadcastMessage(SERVER_ID, MINIGAME_BEGINS_EVENT.CopyIDBytes())
+				// Send Load Minigame event
+				l.BroadcastMessage(SERVER_ID, LOAD_MINIGAME_EVENT.CopyIDBytes())
 			}
 		case uint32(LOBBY_PHASE_LOADING_MINIGAME):
 			if messageInfo.Spec.ID == PLAYER_LOAD_FAILURE_EVENT.ID {
@@ -276,11 +291,6 @@ func (l *Lobby) runPostProcess() {
 			}
 		case uint32(LOBBY_PHASE_IN_MINIGAME):
 
-		}
-
-		if l.activityTracker.lockedIn.Load() {
-			if l.currentActivity == nil {
-			}
 		}
 	}
 }
@@ -332,11 +342,13 @@ func (l *Lobby) trackPhaseAwaitingParticipants(client *Client, spec *EventSpecif
 			log.Printf("[lobby] Error adding participant to activity because it is not yet locked in. Message from %d", client.ID)
 			SendDebugInfoToClient(client, 400, "Cannot add participant to activity because the Activity is not yet locked in")
 		}
-		//TODO: When all clients in lobby have joined or opted out, begin the rest of the process
 	case PLAYER_ABORTING_MINIGAME_EVENT.ID, PLAYER_LEFT_EVENT.ID:
 		if !l.activityTracker.RemoveParticipant(client) {
 			log.Printf("[lobby] Error removing participant from activity because it is not yet locked in. Message from %d", client.ID)
 			SendDebugInfoToClient(client, 400, "Cannot remove participant from activity because the Activity is not yet locked in")
+		} else if client.ID == l.OwnerID {
+			//Emit generic sequence reset
+			l.BroadcastMessage(SERVER_ID, GENERIC_MINIGAME_SEQUENCE_RESET.CopyIDBytes())
 		}
 	}
 
