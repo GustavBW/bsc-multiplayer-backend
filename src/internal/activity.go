@@ -18,10 +18,11 @@ const (
 	LOBBY_PHASE_ROAMING_COLONY LobbyPhase = iota
 	// A hand position check has been triggered
 	//
-	// All player leave, player abandon, player join activity events are being tracked
+	// Awaiting player join activity, player abandon
 	LOBBY_PHASE_AWAITING_PARTICIPANTS
 	// Awaits player ready from all participants
 	LOBBY_PHASE_PLAYERS_DECLARE_INTENT
+	// Awaits player load complete from all participants
 	LOBBY_PHASE_LOADING_MINIGAME
 	// Some minigame is ongoing
 	LOBBY_PHASE_IN_MINIGAME
