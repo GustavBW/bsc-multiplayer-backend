@@ -212,7 +212,7 @@ var PLAYER_LOAD_FAILURE_EVENT = NewSpecification[PlayerLoadFailureMessageDTO](20
 
 var GENERIC_MINIGAME_UNTIMELY_ABORT = NewSpecification[GenericUntimelyAbortMessageDTO](2008, "GenericMinigameUntimelyAbort", "Sent when the server has recieved Player Load Failure from any participant",
 	SERVER_ONLY, []ShortElementDescriptor{
-		NewElementDescriptor("Player ID", "id", reflect.Uint32),
+		NewElementDescriptor("ID of source", "id", reflect.Uint32),
 		NewElementDescriptor("Reason", "reason", reflect.String),
 	}, Handlers_IntentionalIgnoreHandler)
 
@@ -222,9 +222,24 @@ var PLAYER_LOAD_COMPLETE_EVENT = NewSpecification[EmptyDTO](2009, "PlayerLoadCom
 var GENERIC_MINIGAME_SEQUENCE_RESET = NewSpecification[EmptyDTO](2011, "GenericMinigameSequenceReset", "Sent of any non-fatal reason as result of some other action. Fx. if the owner declines participation",
 	SERVER_ONLY, REFERENCE_STRUCTURE_EMPTY, Handlers_IntentionalIgnoreHandler)
 
+var MINIGAME_WON_EVENT = NewSpecification[MinigameWonMessageDTO](2012, "MinigameWon", "Sent when the server has determined that the currently ongoing minigame is won",
+	SERVER_ONLY, []ShortElementDescriptor{
+		NewElementDescriptor("Minigame ID", "minigameID", reflect.Uint32),
+		NewElementDescriptor("Difficulty ID", "difficultyID", reflect.Uint32),
+		NewElementDescriptor("Difficulty Name", "difficultyName", reflect.String),
+	}, Handlers_IntentionalIgnoreHandler)
+
+var MINIGAME_LOST_EVENT = NewSpecification[MinigameLostMessageDTO](2013, "MinigameLost", "Sent when the server has determined that the currently ongoing minigame is lost",
+	SERVER_ONLY, []ShortElementDescriptor{
+		NewElementDescriptor("Minigame ID", "minigameID", reflect.Uint32),
+		NewElementDescriptor("Difficulty ID", "difficultyID", reflect.Uint32),
+		NewElementDescriptor("Difficulty Name", "difficultyName", reflect.String),
+	}, Handlers_IntentionalIgnoreHandler)
+
 var MINIGAME_INITIATION_EVENTS = NewSpecMap(DIFFICULTY_SELECT_FOR_MINIGAME_EVENT, DIFFICULTY_CONFIRMED_FOR_MINIGAME_EVENT, PLAYERS_DECLARE_INTENT_EVENT,
 	PLAYER_READY_EVENT, PLAYER_ABORTING_MINIGAME_EVENT, MINIGAME_BEGINS_EVENT, PLAYER_JOIN_ACTIVITY_EVENT, PLAYER_LOAD_FAILURE_EVENT,
-	GENERIC_MINIGAME_UNTIMELY_ABORT, PLAYER_LOAD_COMPLETE_EVENT, LOAD_MINIGAME_EVENT, GENERIC_MINIGAME_SEQUENCE_RESET)
+	GENERIC_MINIGAME_UNTIMELY_ABORT, PLAYER_LOAD_COMPLETE_EVENT, LOAD_MINIGAME_EVENT, GENERIC_MINIGAME_SEQUENCE_RESET,
+	MINIGAME_WON_EVENT, MINIGAME_LOST_EVENT)
 
 // Loads and organises event specification for later use
 // Also checks if there's errors.

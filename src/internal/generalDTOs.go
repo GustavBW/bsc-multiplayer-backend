@@ -63,3 +63,15 @@ type GenericUntimelyAbortMessageDTO struct {
 	PlayerID uint32 `json:"playerID"`
 	Reason   string `json:"reason"`
 }
+
+type MinigameLostMessageDTO struct {
+	MinigameID     uint32 `json:"minigameID"`
+	DifficultyID   uint32 `json:"difficultyID"`
+	DifficultyName string `json:"difficultyName"`
+}
+
+type MinigameWonMessageDTO struct {
+	MinigameID     uint32 `json:"minigameID"`
+	DifficultyID   uint32 `json:"difficultyID"`
+	DifficultyName string `json:"difficultyName"`
+}

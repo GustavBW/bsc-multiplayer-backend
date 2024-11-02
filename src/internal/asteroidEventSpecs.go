@@ -72,35 +72,19 @@ const (
 
 type AsteroidsPlayerPenaltyMessageDTO struct {
 	PlayerID        uint32               `json:"playerID"`
-	TimoutDurationS uint32               `json:"timeoutDurationS"`
+	TimoutDurationS float32              `json:"timeoutDurationS"`
 	Type            AsteroidsPenaltyType `json:"type"`
 }
 
 var PLAYER_PENALTY_EVENT = NewSpecification[AsteroidsPlayerPenaltyMessageDTO](3007, "AsteroidsPlayerPenalty", "Sent when a player recieves a timeout",
 	SERVER_ONLY, []ShortElementDescriptor{
 		NewElementDescriptor("Player ID", "playerID", reflect.Uint32),
-		NewElementDescriptor("Timeout Duration (s)", "timeoutDurationS", reflect.Uint32),
+		NewElementDescriptor("Timeout Duration (s)", "timeoutDurationS", reflect.Float32),
 		NewElementDescriptor("Penalty Type", "type", reflect.String),
 	}, Handlers_IntentionalIgnoreHandler)
 
-type AsteroidsGameWonMessageDTO struct{}
-
-//GameWonEvent
-var GAME_WON_EVENT = NewSpecification[AsteroidsGameWonMessageDTO](3004, "AsteroidsGameWon", "Sent when the server has determined that the game is won",
-	SERVER_ONLY, REFERENCE_STRUCTURE_EMPTY, Handlers_IntentionalIgnoreHandler)
-
-type AsteroidsGameLostMessageDTO struct{}
-
-//GameLostEvent
-var GAME_LOST_EVENT = NewSpecification[AsteroidsGameLostMessageDTO](3005, "AsteroidsGameLost", "Sent when the server has determined that a game is lost",
-	SERVER_ONLY, REFERENCE_STRUCTURE_EMPTY, Handlers_IntentionalIgnoreHandler)
-
 type AsteroidsUntimelyAbortMessageDTO struct{}
-
-//UntimelyAbortGameEvent
-var UNTIMELY_ABORT_EVENT = NewSpecification[AsteroidsUntimelyAbortMessageDTO](3006, "AsteroidsUntimelyAbortGame", "Sent when something goes wrong",
-	SERVER_ONLY, REFERENCE_STRUCTURE_EMPTY, Handlers_IntentionalIgnoreHandler)
 
 // Range 3000 -> 3999
 var ALL_ASTEROIDS_EVENTS = NewSpecMap(ASTEROID_SPAWN_EVENT, ASSIGN_PLAYER_DATA_EVENT, ASTEROID_IMPACT_EVENT,
-	PLAYER_SHOOT_EVENT, GAME_WON_EVENT, GAME_LOST_EVENT, UNTIMELY_ABORT_EVENT, PLAYER_PENALTY_EVENT)
+	PLAYER_SHOOT_EVENT, PLAYER_PENALTY_EVENT)
