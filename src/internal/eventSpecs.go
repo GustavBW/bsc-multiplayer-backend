@@ -165,6 +165,7 @@ var COLONY_EVENTS = NewSpecMap(ENTER_LOCATION_EVENT, PLAYER_MOVE_EVENT)
 
 var DIFFICULTY_SELECT_FOR_MINIGAME_EVENT = NewSpecification[DifficultySelectForMinigameMessageDTO](2000, "DifficultySelectForMinigame", "Sent when the owner selects a difficulty (NOT CONFIRM)",
 	OWNER_ONLY, []ShortElementDescriptor{
+		NewElementDescriptor("Colony Location id", "colonyLocationID", reflect.Uint32),
 		NewElementDescriptor("Minigame ID", "minigameID", reflect.Uint32),
 		NewElementDescriptor("Difficulty ID", "difficultyID", reflect.Uint32),
 		NewElementDescriptor("Difficulty Name", "difficultyName", reflect.String),
@@ -172,6 +173,7 @@ var DIFFICULTY_SELECT_FOR_MINIGAME_EVENT = NewSpecification[DifficultySelectForM
 
 var DIFFICULTY_CONFIRMED_FOR_MINIGAME_EVENT = NewSpecification[DifficultyConfirmedForMinigameMessageDTO](2001, "DifficultyConfirmedForMinigame", "Sent when the owner confirms a selected difficulty",
 	OWNER_ONLY, []ShortElementDescriptor{
+		NewElementDescriptor("Colony Location id", "colonyLocationID", reflect.Uint32),
 		NewElementDescriptor("Minigame ID", "minigameID", reflect.Uint32),
 		NewElementDescriptor("Difficulty ID", "difficultyID", reflect.Uint32),
 		NewElementDescriptor("Difficulty Name", "difficultyName", reflect.String),
@@ -224,6 +226,7 @@ var GENERIC_MINIGAME_SEQUENCE_RESET = NewSpecification[EmptyDTO](2011, "GenericM
 
 var MINIGAME_WON_EVENT = NewSpecification[MinigameWonMessageDTO](2012, "MinigameWon", "Sent when the server has determined that the currently ongoing minigame is won",
 	SERVER_ONLY, []ShortElementDescriptor{
+		NewElementDescriptor("Colony Location id", "colonyLocationID", reflect.Uint32),
 		NewElementDescriptor("Minigame ID", "minigameID", reflect.Uint32),
 		NewElementDescriptor("Difficulty ID", "difficultyID", reflect.Uint32),
 		NewElementDescriptor("Difficulty Name", "difficultyName", reflect.String),
@@ -231,6 +234,7 @@ var MINIGAME_WON_EVENT = NewSpecification[MinigameWonMessageDTO](2012, "Minigame
 
 var MINIGAME_LOST_EVENT = NewSpecification[MinigameLostMessageDTO](2013, "MinigameLost", "Sent when the server has determined that the currently ongoing minigame is lost",
 	SERVER_ONLY, []ShortElementDescriptor{
+		NewElementDescriptor("Colony Location id", "colonyLocationID", reflect.Uint32),
 		NewElementDescriptor("Minigame ID", "minigameID", reflect.Uint32),
 		NewElementDescriptor("Difficulty ID", "difficultyID", reflect.Uint32),
 		NewElementDescriptor("Difficulty Name", "difficultyName", reflect.String),

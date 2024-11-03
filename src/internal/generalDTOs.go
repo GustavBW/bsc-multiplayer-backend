@@ -29,15 +29,17 @@ type PlayerMoveMessageDTO struct {
 }
 
 type DifficultySelectForMinigameMessageDTO struct {
-	MinigameID     uint32 `json:"minigameID"`
-	DifficultyID   uint32 `json:"difficultyID"`
-	DifficultyName string `json:"difficultyName"`
+	ColonyLocationID uint32 `json:"colonyLocationID"`
+	MinigameID       uint32 `json:"minigameID"`
+	DifficultyID     uint32 `json:"difficultyID"`
+	DifficultyName   string `json:"difficultyName"`
 }
 
 type DifficultyConfirmedForMinigameMessageDTO struct {
-	MinigameID     uint32 `json:"minigameID"`
-	DifficultyID   uint32 `json:"difficultyID"`
-	DifficultyName string `json:"difficultyName"`
+	ColonyLocationID uint32 `json:"colonyLocationID"`
+	MinigameID       uint32 `json:"minigameID"`
+	DifficultyID     uint32 `json:"difficultyID"`
+	DifficultyName   string `json:"difficultyName"`
 }
 
 type PlayerReadyMessageDTO struct {
@@ -65,13 +67,15 @@ type GenericUntimelyAbortMessageDTO struct {
 }
 
 type MinigameLostMessageDTO struct {
-	MinigameID     uint32 `json:"minigameID"`
-	DifficultyID   uint32 `json:"difficultyID"`
-	DifficultyName string `json:"difficultyName"`
+	ColonyLocationID uint32 `json:"colonyLocationID"`
+	MinigameID       uint32 `json:"minigameID"`
+	DifficultyID     uint32 `json:"difficultyID"`
+	DifficultyName   string `json:"difficultyName"`
 }
 
 type MinigameWonMessageDTO struct {
-	MinigameID     uint32 `json:"minigameID"`
-	DifficultyID   uint32 `json:"difficultyID"`
-	DifficultyName string `json:"difficultyName"`
+	ColonyLocationID uint32 `json:"colonyLocationID"`
+	MinigameID       uint32 `json:"minigameID"`
+	DifficultyID     uint32 `json:"difficultyID"`
+	DifficultyName   string `json:"difficultyName"`
 }
