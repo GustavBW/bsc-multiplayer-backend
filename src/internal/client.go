@@ -16,7 +16,7 @@ type ClientID = uint32
 // Information from the client itself about various variables. Generally untrustworthy
 //
 // Any public contents of this struct must be threadsafe as this object for any client, is updated and accessed from multiple threads
-type DisclosedClientState struct {
+type GeneralDisclosedClientState struct {
 	//Threadsafe, id of last known colony location
 	LastKnownPosition atomic.Uint32
 	//Threadsafe, milliseconds since epoch of last message received
@@ -28,7 +28,7 @@ type DisclosedClientState struct {
 // # Assumes the message remainder is validated
 //
 // Doesn't lock any
-func (dcs *DisclosedClientState) UpdateAny(messageID MessageID, remainder []byte) {
+func (dcs *GeneralDisclosedClientState) UpdateAny(messageID MessageID, remainder []byte) {
 	// Any additional state to track should be added as cases here.
 	switch messageID {
 	case PLAYER_MOVE_EVENT.ID:
@@ -53,7 +53,7 @@ type Client struct {
 	IGN     string
 	Type    OriginType
 	//Updated in sync with processing of this clients messages
-	State    *DisclosedClientState
+	State    *GeneralDisclosedClientState
 	Encoding meta.MessageEncoding
 	Conn     *websocket.Conn
 }
@@ -62,8 +62,8 @@ func (c *Client) String() string {
 	return fmt.Sprintf("%d (%s) %s encoding: %s", c.ID, c.IGN, c.Type, c.Encoding)
 }
 
-func NewDisclosedClientState() *DisclosedClientState {
-	return &DisclosedClientState{
+func NewDisclosedClientState() *GeneralDisclosedClientState {
+	return &GeneralDisclosedClientState{
 		LastKnownPosition: atomic.Uint32{},
 		MSOfLastMessage:   atomic.Uint64{},
 	}

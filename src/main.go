@@ -45,10 +45,6 @@ func main() {
 	}
 	internal.SetServerID(SERVER_ID, SERVER_ID_BYTES)
 
-	if regErr := internal.InitActivityRegistry(); regErr != nil {
-		panic(regErr)
-	}
-
 	lobbyManager := internal.CreateLobbyManager(runtimeConfiguration)
 
 	// Create a new ServeMux

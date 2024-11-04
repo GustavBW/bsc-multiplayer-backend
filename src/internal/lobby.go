@@ -42,7 +42,7 @@ type Lobby struct {
 	BroadcastMessage func(senderID ClientID, message []byte) []*Client
 	Encoding         meta.MessageEncoding
 	activityTracker  *ActivityTracker
-	currentActivity  *Activity[any]
+	currentActivity  *GenericMinigameControls
 	CloseQueue       chan<- *Lobby // Queue on which to register self for closing
 	// Queue of all messages to be further tracked
 	// All messages must have been through all pre-flight checks and handler before being added here
@@ -275,10 +275,11 @@ func (l *Lobby) runPostProcess() {
 					SendDebugInfoToClient(messageInfo.Client, 400, "Error deserializing message: "+err.Error())
 					return
 				}
-				messageBody := PLAYER_LOAD_FAILURE_EVENT.CopyIDBytes()
+				messageBody := GENERIC_MINIGAME_UNTIMELY_ABORT.CopyIDBytes()
 				messageBody = append(messageBody, messageInfo.Client.IDBytes...)
 				messageBody = append(messageBody, []byte(deserialized.Reason)...)
 				l.BroadcastMessage(SERVER_ID, messageBody)
+				l.activityTracker.ReleaseLock()
 			}
 
 			if messageInfo.Spec.ID == PLAYER_LOAD_COMPLETE_EVENT.ID {
@@ -286,11 +287,39 @@ func (l *Lobby) runPostProcess() {
 			}
 
 			if l.activityTracker.AdvanceIfAllPlayersHaveLoadedIn() {
-				// Send Enter Minigame event
-				l.BroadcastMessage(SERVER_ID, MINIGAME_BEGINS_EVENT.CopyIDBytes())
+				// Find game loop.
+				var diff *DifficultyConfirmedForMinigameMessageDTO
+				l.activityTracker.diffConfirmed.Do(func(v *DifficultyConfirmedForMinigameMessageDTO) {
+					diff = v
+				})
+				controls, err := LoadMinigameControls(diff, l)
+				if err != nil {
+					messageBody := GENERIC_MINIGAME_UNTIMELY_ABORT.CopyIDBytes()
+					messageBody = append(messageBody, SERVER_ID_BYTES...)
+					messageBody = append(messageBody, []byte(err.Error())...)
+					l.BroadcastMessage(SERVER_ID, messageBody)
+					l.activityTracker.ReleaseLock()
+				}
+
+				if err := controls.ExecRisingEdge(); err != nil {
+					messageBody := GENERIC_MINIGAME_UNTIMELY_ABORT.CopyIDBytes()
+					messageBody = append(messageBody, SERVER_ID_BYTES...)
+					messageBody = append(messageBody, []byte(err.Error())...)
+					l.BroadcastMessage(SERVER_ID, messageBody)
+					l.activityTracker.ReleaseLock()
+				}
+
+				controls.StartLoop()
+				l.currentActivity = controls
 			}
 		case uint32(LOBBY_PHASE_IN_MINIGAME):
-
+			_, isInGame := l.activityTracker.participantTracker.OptIn.Load(messageInfo.Client.ID)
+			if isInGame {
+				if err := l.currentActivity.OnMessage(messageInfo); err != nil {
+					log.Printf("[lobby] Error processing message in minigame: %v", err)
+					SendDebugInfoToClient(messageInfo.Client, 500, "Error processing message in minigame: "+err.Error())
+				}
+			}
 		}
 	}
 }
@@ -303,19 +332,6 @@ func (l *Lobby) trackPhasePlayersDeclareIntent(client *Client, spec *EventSpecif
 
 func (l *Lobby) trackPhaseRoamningColony(client *Client, spec *EventSpecification[any], remainder []byte) {
 	switch spec.ID {
-	case DIFFICULTY_SELECT_FOR_MINIGAME_EVENT.ID:
-		deserialized, err := Deserialize(DIFFICULTY_SELECT_FOR_MINIGAME_EVENT, remainder, true)
-		if err != nil {
-			log.Printf("[lobby] While updating tracked activity: Error deserializing message from clientID %d: %v", client.ID, err)
-			SendDebugInfoToClient(client, 400, "Error deserializing message: "+err.Error())
-			return
-		}
-		if !(l.activityTracker.ChangeActivityID(deserialized.MinigameID) &&
-			l.activityTracker.ChangeDifficultyID(deserialized.DifficultyID)) {
-			log.Printf("[lobby] Error changing activity or difficulty for activity because the tracker is locked. Message from %d", client.ID)
-			SendDebugInfoToClient(client, 400, "Cannot change activity or difficulty for activity because the activity has been locked in already")
-		}
-
 	case DIFFICULTY_CONFIRMED_FOR_MINIGAME_EVENT.ID:
 		deserialized, err := Deserialize(DIFFICULTY_CONFIRMED_FOR_MINIGAME_EVENT, remainder, true)
 		if err != nil {
@@ -323,8 +339,7 @@ func (l *Lobby) trackPhaseRoamningColony(client *Client, spec *EventSpecificatio
 			SendDebugInfoToClient(client, 400, "Error deserializing message: "+err.Error())
 			return
 		}
-		if l.activityTracker.ChangeActivityID(deserialized.MinigameID) &&
-			l.activityTracker.ChangeDifficultyID(deserialized.DifficultyID) {
+		if l.activityTracker.SetDiffConfirmed(deserialized) {
 			if !l.activityTracker.LockIn(uint32(l.ClientCount())) {
 				log.Println("How?! (Concurrency bug) lobby.trackPhaseRoamingColony")
 			}

@@ -1,4 +1,4 @@
-package minigames
+package util
 
 import (
 	"math"

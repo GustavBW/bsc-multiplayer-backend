@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"log"
 	"sync/atomic"
 
 	"github.com/GustavBW/bsc-multiplayer-backend/src/util"
@@ -31,8 +32,7 @@ const (
 // Struct for holding and updating information based on the lobby owners actions
 type ActivityTracker struct {
 	//	Same as MinigameID
-	activityID         atomic.Uint32
-	difficultyID       atomic.Uint32
+	diffConfirmed      *util.SafeValue[*DifficultyConfirmedForMinigameMessageDTO]
 	lockedIn           atomic.Bool
 	phase              atomic.Uint32
 	participantTracker struct {
@@ -76,18 +76,9 @@ func (ta *ActivityTracker) RemoveParticipant(client *Client) bool {
 // Changes the activity id.
 //
 // Returns true if the change was successful
-func (ta *ActivityTracker) ChangeActivityID(id uint32) bool {
+func (ta *ActivityTracker) SetDiffConfirmed(dto *DifficultyConfirmedForMinigameMessageDTO) bool {
 	if !ta.lockedIn.Load() {
-		ta.activityID.Store(id)
-		return true
-	}
-	return false
-}
-
-// Returns true if the change was successful
-func (ta *ActivityTracker) ChangeDifficultyID(id uint32) bool {
-	if !ta.lockedIn.Load() {
-		ta.difficultyID.Store(id)
+		ta.diffConfirmed.Set(dto)
 		return true
 	}
 	return false
@@ -101,7 +92,11 @@ func (ta *ActivityTracker) ChangeDifficultyID(id uint32) bool {
 //
 // Returns false if no activity id or difficulty id has been set yet
 func (ta *ActivityTracker) LockIn(numPlayersRightNow uint32) bool {
-	if ta.activityID.Load() == 0 || ta.difficultyID.Load() == 0 {
+	var isNil = true
+	ta.diffConfirmed.Do(func(v *DifficultyConfirmedForMinigameMessageDTO) {
+		isNil = v == nil
+	})
+	if isNil {
 		return false
 	}
 	ta.lockedIn.Store(true)
@@ -124,6 +119,7 @@ func (ta *ActivityTracker) AdvanceIfAllExpectedParticipantsAreAccountedFor() boo
 		})
 		ta.playerReadyTracker.participantSum.Store(participantCount)
 		ta.playerReadyTracker.playersAccountedFor.Store(0)
+		log.Println("Going to in players declare intent phase")
 		return true
 	}
 	return false
@@ -139,6 +135,7 @@ func (ta *ActivityTracker) MarkPlayerAsReady(client *Client) {
 func (ta *ActivityTracker) AdvanceIfAllPlayersAreReady() bool {
 	if ta.playerReadyTracker.playersAccountedFor.Load() >= ta.playerReadyTracker.participantSum.Load() {
 		ta.phase.Store(uint32(LOBBY_PHASE_LOADING_MINIGAME))
+		log.Println("Going to in loading minigame phase")
 		return true
 	}
 	return false
@@ -153,6 +150,7 @@ func (ta *ActivityTracker) MarkPlayerAsLoadComplete(client *Client) {
 func (ta *ActivityTracker) AdvanceIfAllPlayersHaveLoadedIn() bool {
 	if ta.playerLoadCompleteTracker.playersAccountedFor.Load() >= ta.playerLoadCompleteTracker.participantSum.Load() {
 		ta.phase.Store(uint32(LOBBY_PHASE_IN_MINIGAME))
+		log.Println("Going to in minigame phase")
 		return true
 	}
 	return false
@@ -171,8 +169,7 @@ func (ta *ActivityTracker) ReleaseLock() error {
 
 // Reset all tracked fields
 func (ta *ActivityTracker) Reset() error {
-	ta.activityID.Store(0)
-	ta.difficultyID.Store(0)
+	ta.diffConfirmed.Set(nil)
 	ta.participantTracker.OptIn.Clear()
 	ta.participantTracker.OptOut.Clear()
 	ta.participantTracker.playersAccountedFor.Store(0)
@@ -189,10 +186,9 @@ func (ta *ActivityTracker) Reset() error {
 
 func NewActivityTracker() *ActivityTracker {
 	tracker := &ActivityTracker{
-		activityID:   atomic.Uint32{},
-		difficultyID: atomic.Uint32{},
-		lockedIn:     atomic.Bool{},
-		phase:        atomic.Uint32{},
+		diffConfirmed: &util.SafeValue[*DifficultyConfirmedForMinigameMessageDTO]{},
+		lockedIn:      atomic.Bool{},
+		phase:         atomic.Uint32{},
 		participantTracker: struct { // Used during AWAITING_PARTICIPANTS phase
 			playersAccountedFor atomic.Uint32
 			playersToAccountFor atomic.Uint32
@@ -224,26 +220,6 @@ func NewActivityTracker() *ActivityTracker {
 		},
 	}
 	tracker.phase.Store(uint32(LOBBY_PHASE_ROAMING_COLONY))
-	tracker.activityID.Store(0)
-	tracker.difficultyID.Store(0)
 	tracker.lockedIn.Store(false)
 	return tracker
-}
-
-type IActivitySettings interface {
-}
-type GenericGameLoop[T IActivitySettings] func(lobby *Lobby, settings T) func() error
-
-// Represents some minigame or other activity that can be played in a lobby
-type Activity[T IActivitySettings] struct {
-	ID          uint32
-	GetGameLoop GenericGameLoop[T]
-}
-
-func NewActivity[T IActivitySettings](id uint32, gameLoop GenericGameLoop[T]) *Activity[T] {
-	activity := &Activity[T]{
-		ID:          id,
-		GetGameLoop: gameLoop,
-	}
-	return activity
 }
