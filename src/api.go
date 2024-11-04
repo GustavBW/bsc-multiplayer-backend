@@ -156,10 +156,28 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
+func getAsInt(r *http.Request, key string) (int, error) {
+	value := r.URL.Query().Get(key)
+	if value == "" {
+		return 0, fmt.Errorf("query param %s missing", key)
+	}
+	return strconv.Atoi(value)
+}
+func getAsUint32(r *http.Request, key string) (uint32, error) {
+	value := r.URL.Query().Get(key)
+	if value == "" {
+		return 0, fmt.Errorf("query param %s missing", key)
+	}
+	parsed, err := strconv.ParseUint(value, 10, 32)
+	return uint32(parsed), err
+}
+
 func webSocketConnectionRequestHandler(lobbyManager *internal.LobbyManager, w http.ResponseWriter, r *http.Request) {
-	lobbyIDStr := r.URL.Query().Get("lobbyID")
-	userIDStr := r.URL.Query().Get("clientID")
+	lobbyID, lobbyIDErr := getAsInt(r, "lobbyID")
+	userID, userIDErr := getAsInt(r, "clientID")
 	IGN := r.URL.Query().Get("IGN")
+	colonyID, colonyIDErr := getAsUint32(r, "colonyID")
+	ownerID, ownerIDErr := getAsUint32(r, "ownerID")
 
 	if IGN == "" {
 		w.Header().Set("Default-Debug-Header", "IGN query param missing")
@@ -169,7 +187,6 @@ func webSocketConnectionRequestHandler(lobbyManager *internal.LobbyManager, w ht
 		return
 	}
 
-	lobbyID, lobbyIDErr := strconv.ParseUint(lobbyIDStr, 10, 32)
 	if lobbyIDErr != nil {
 		log.Printf("Error in lobbyID: %s", lobbyIDErr)
 		w.Header().Set("Default-Debug-Header", fmt.Sprintf("Error in lobbyID: %s", lobbyIDErr))
@@ -177,8 +194,6 @@ func webSocketConnectionRequestHandler(lobbyManager *internal.LobbyManager, w ht
 		middleware.LogResultOfRequest(w, r, http.StatusBadRequest)
 		return
 	}
-
-	userID, userIDErr := strconv.ParseUint(userIDStr, 10, 32)
 
 	if userIDErr != nil {
 		log.Printf("Error in userID: %s", userIDErr.Error())
@@ -188,7 +203,23 @@ func webSocketConnectionRequestHandler(lobbyManager *internal.LobbyManager, w ht
 		return
 	}
 
-	if err := lobbyManager.IsJoinPossible(uint32(lobbyID), uint32(userID)); err != nil {
+	if colonyIDErr != nil {
+		log.Printf("Error in colonyID: %s", colonyIDErr)
+		w.Header().Set("Default-Debug-Header", fmt.Sprintf("Error in colonyID: %s", colonyIDErr))
+		http.Error(w, fmt.Sprintf("Error in colonyID: %s", colonyIDErr.Error()), http.StatusBadRequest)
+		middleware.LogResultOfRequest(w, r, http.StatusBadRequest)
+		return
+	}
+
+	if ownerIDErr != nil {
+		log.Printf("Error in ownerID: %s", ownerIDErr)
+		w.Header().Set("Default-Debug-Header", fmt.Sprintf("Error in ownerID: %s", ownerIDErr))
+		http.Error(w, fmt.Sprintf("Error in ownerID: %s", ownerIDErr.Error()), http.StatusBadRequest)
+		middleware.LogResultOfRequest(w, r, http.StatusBadRequest)
+		return
+	}
+
+	if err := lobbyManager.IsJoinPossible(uint32(lobbyID), uint32(userID), colonyID, ownerID); err != nil {
 		log.Printf("Failed to join lobby: %v", err)
 		w.Header().Set("Default-Debug-Header", err.Error())
 		switch err.Type {

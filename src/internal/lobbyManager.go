@@ -5,6 +5,7 @@ import (
 	"log"
 	"sync/atomic"
 
+	"github.com/GustavBW/bsc-multiplayer-backend/src/integrations"
 	"github.com/GustavBW/bsc-multiplayer-backend/src/meta"
 	"github.com/GustavBW/bsc-multiplayer-backend/src/util"
 	"github.com/gorilla/websocket"
@@ -112,9 +113,13 @@ func (lm *LobbyManager) CreateLobby(ownerID ClientID, colonyID uint32, userSetEn
 	return lobby, nil
 }
 
-func (lm *LobbyManager) IsJoinPossible(lobbyID LobbyID, clientID ClientID) *LobbyJoinError {
+func (lm *LobbyManager) IsJoinPossible(lobbyID LobbyID, clientID ClientID, colonyID uint32, colonyOwnerID uint32) *LobbyJoinError {
 	lobby, exists := lm.Lobbies.Load(lobbyID)
 	if !exists {
+		//In the case we have a de-sync issue, attempt to close the colony
+		//it will error if the colony is already closed, or doesn't exist, but in this specific case
+		//we don't mind
+		go integrations.GetMainBackendIntegration().CloseColony(colonyID, colonyOwnerID)
 		return &LobbyJoinError{Reason: "Lobby does not exist", Type: JoinErrorNotFound, LobbyID: lobbyID}
 	}
 

@@ -299,6 +299,7 @@ func (l *Lobby) runPostProcess() {
 					messageBody = append(messageBody, []byte(err.Error())...)
 					l.BroadcastMessage(SERVER_ID, messageBody)
 					l.activityTracker.ReleaseLock()
+					return
 				}
 
 				if err := controls.ExecRisingEdge(); err != nil {
@@ -307,6 +308,7 @@ func (l *Lobby) runPostProcess() {
 					messageBody = append(messageBody, []byte(err.Error())...)
 					l.BroadcastMessage(SERVER_ID, messageBody)
 					l.activityTracker.ReleaseLock()
+					return
 				}
 
 				controls.StartLoop()
