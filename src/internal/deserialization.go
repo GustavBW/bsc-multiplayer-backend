@@ -89,7 +89,7 @@ func setStructField(strukt interface{}, fieldName string, value interface{}) err
 
 // Extremely unsafe. Use with caution
 func parseGoTypeFromBytes(data []byte, offset uint32, kind reflect.Kind) (interface{}, error) {
-	if sizeOfSerializedKind(kind) > uint32(len(data))-offset {
+	if util.SizeOfSerializedKind(kind) > uint32(len(data))-offset {
 		return nil, fmt.Errorf("not enough data to parse %s", kind)
 	}
 	switch kind {

@@ -22,8 +22,8 @@ func GetMainBackendIntegration() *MainBackendIntegration {
 }
 
 type MBMinigameSettingsDTO struct {
-	Settings            string `json:"settings"`
-	OverwritingSettings string `json:"overwritingSettings"`
+	Settings            json.RawMessage `json:"settings"`
+	OverwritingSettings json.RawMessage `json:"overwritingSettings"`
 }
 
 type CloseColonyRequest struct {
@@ -78,7 +78,7 @@ func getConfiguredClient() *http.Client {
 }
 
 func (m *MainBackendIntegration) GetMinigameSettings(minigameID uint32, difficultyID uint32) (*MBMinigameSettingsDTO, error) {
-	url := fmt.Sprintf(m.baseURL+"/minigame/%d/settings/%d", minigameID, difficultyID)
+	url := fmt.Sprintf(m.baseURL+"/minigame/minimized?minigame=%d&difficulty=%d", minigameID, difficultyID)
 
 	resp, err := getConfiguredClient().Get(url)
 	if err != nil {

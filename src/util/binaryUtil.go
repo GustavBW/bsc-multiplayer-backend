@@ -4,7 +4,9 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
+	"fmt"
 	"math"
+	"reflect"
 )
 
 // Little Endian order
@@ -42,4 +44,66 @@ func EncodeBase64(message []byte) []byte {
 	base64.StdEncoding.Encode(dest, message)
 
 	return dest
+}
+
+// writeValueToBytes writes a reflect.Value to a byte slice according to its kind
+func WriteValueToBytes(dest []byte, value reflect.Value) error {
+	kind := value.Kind()
+	if SizeOfSerializedKind(kind) > uint32(len(dest)) {
+		return fmt.Errorf("buffer underflow: (len %d) too small for %s", len(dest), kind)
+	}
+
+	switch value.Kind() {
+	case reflect.Uint8:
+		dest[0] = uint8(value.Uint())
+	case reflect.Uint16:
+		binary.BigEndian.PutUint16(dest, uint16(value.Uint()))
+	case reflect.Uint32:
+		binary.BigEndian.PutUint32(dest, uint32(value.Uint()))
+	case reflect.Uint64:
+		binary.BigEndian.PutUint64(dest, value.Uint())
+	case reflect.Int8:
+		dest[0] = uint8(value.Int())
+	case reflect.Int16:
+		binary.BigEndian.PutUint16(dest, uint16(value.Int()))
+	case reflect.Int32:
+		binary.BigEndian.PutUint32(dest, uint32(value.Int()))
+	case reflect.Int64:
+		binary.BigEndian.PutUint64(dest, uint64(value.Int()))
+	case reflect.Float32:
+		binary.BigEndian.PutUint32(dest, math.Float32bits(float32(value.Float())))
+	case reflect.Float64:
+		binary.BigEndian.PutUint64(dest, math.Float64bits(value.Float()))
+	case reflect.String:
+		strBytes := []byte(value.String())
+		copy(dest, strBytes)
+	default:
+		return fmt.Errorf("unsupported type: %s", kind)
+	}
+
+	return nil
+}
+
+// SizeOfSerializedKind returns the size in bytes of the type when serialized.
+//
+// Returns 0 for variable length kinds like Array, Slice, String
+func SizeOfSerializedKind(kind reflect.Kind) uint32 {
+	switch kind {
+	case reflect.Bool:
+		return 1
+	case reflect.Int8, reflect.Uint8:
+		return 1
+	case reflect.Int16, reflect.Uint16:
+		return 2
+	case reflect.Int32, reflect.Uint32, reflect.Float32:
+		return 4
+	case reflect.Int64, reflect.Uint64, reflect.Float64, reflect.Complex64:
+		return 8
+	case reflect.Complex128:
+		return 16
+	case reflect.String, reflect.Slice, reflect.Array:
+		return 0
+	default:
+		return 0
+	}
 }

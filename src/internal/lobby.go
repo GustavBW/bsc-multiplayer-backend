@@ -292,7 +292,7 @@ func (l *Lobby) runPostProcess() {
 				l.activityTracker.diffConfirmed.Do(func(v *DifficultyConfirmedForMinigameMessageDTO) {
 					diff = v
 				})
-				controls, err := LoadMinigameControls(diff, l)
+				controls, err := LoadMinigameControls(diff, l, l.dismountCurrentActivity)
 				if err != nil {
 					messageBody := GENERIC_MINIGAME_UNTIMELY_ABORT.CopyIDBytes()
 					messageBody = append(messageBody, SERVER_ID_BYTES...)
@@ -324,6 +324,16 @@ func (l *Lobby) runPostProcess() {
 			}
 		}
 	}
+}
+
+// Dismounts the current activity
+// Releases the lock on activity tracker
+func (l *Lobby) dismountCurrentActivity() {
+	if l.currentActivity != nil {
+		l.currentActivity.ExecFallingEdge()
+		l.currentActivity = nil
+	}
+	l.activityTracker.ReleaseLock()
 }
 
 func (l *Lobby) trackPhasePlayersDeclareIntent(client *Client, spec *EventSpecification[any], remainder []byte) {

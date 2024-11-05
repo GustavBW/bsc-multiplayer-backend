@@ -3,6 +3,8 @@ package internal
 import (
 	"fmt"
 	"reflect"
+
+	"github.com/GustavBW/bsc-multiplayer-backend/src/util"
 )
 
 // For use in statically computing elements at the very start of the application
@@ -44,6 +46,7 @@ const MESSAGE_HEADER_SIZE uint32 = 8
 // PANICS if the kind is not supported, or the ReferenceStructure does not adhere to simplified message format
 //
 // Returns the minimum total size of any message of this description as well as the full computed structure
+// the min size does not include the message header
 func ComputeStructure(messageName string, shortDescription ReferenceStructure) (uint32, ComputedStructure) {
 	var computedStructure ComputedStructure
 	var offset uint32 = MESSAGE_HEADER_SIZE
@@ -55,7 +58,7 @@ func ComputeStructure(messageName string, shortDescription ReferenceStructure) (
 			panic(err)
 		}
 
-		var isVariable bool = isKindOfVariableSize(element.Kind)
+		var isVariable bool = IsKindOfVariableSize(element.Kind)
 		if isVariable && hasVariableSizeElement {
 			panic(fmt.Errorf("message %s has multiple variable size elements", messageName))
 		}
@@ -66,7 +69,7 @@ func ComputeStructure(messageName string, shortDescription ReferenceStructure) (
 		}
 
 		// Extract the actual value from the interface and use unsafe.Sizeof
-		sizeOfElement := sizeOfSerializedKind(element.Kind)
+		sizeOfElement := util.SizeOfSerializedKind(element.Kind)
 
 		computedStructure = append(computedStructure, MessageElementDescriptor{
 			ByteSize:    sizeOfElement,
@@ -95,35 +98,11 @@ var TypesAllowed = []reflect.Kind{
 	reflect.Bool, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128, reflect.String,
 }
 
-func isKindOfVariableSize(kind reflect.Kind) bool {
+func IsKindOfVariableSize(kind reflect.Kind) bool {
 	switch kind {
 	case reflect.String, reflect.Slice, reflect.Array, reflect.Interface, reflect.Struct:
 		return true
 	}
 
 	return false
-}
-
-// sizeOfSerializedKind returns the size in bytes of the type when serialized.
-//
-// Returns 0 for variable length kinds like Array, Slice, String
-func sizeOfSerializedKind(kind reflect.Kind) uint32 {
-	switch kind {
-	case reflect.Bool:
-		return 1
-	case reflect.Int8, reflect.Uint8:
-		return 1
-	case reflect.Int16, reflect.Uint16:
-		return 2
-	case reflect.Int32, reflect.Uint32, reflect.Float32:
-		return 4
-	case reflect.Int64, reflect.Uint64, reflect.Float64, reflect.Complex64:
-		return 8
-	case reflect.Complex128:
-		return 16
-	case reflect.String, reflect.Slice, reflect.Array:
-		return 0
-	default:
-		return 0
-	}
 }
