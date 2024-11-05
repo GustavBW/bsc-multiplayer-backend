@@ -31,7 +31,7 @@ type EventSpecification[T any] struct {
 	SendPermissions map[OriginType]bool
 	ID              MessageID
 	IDBytes         []byte
-	//In bytes, excluding sender id and event id
+	//In bytes, excluding message header
 	ExpectedMinSize uint32
 	Name            string
 	Comment         string
@@ -65,7 +65,7 @@ func NewSpecification[T any](id MessageID, name string, comment string, whoMaySe
 		ID:              id,
 		Handler:         handler,
 		IDBytes:         idAsBytes,
-		ExpectedMinSize: minContentSize + MESSAGE_HEADER_SIZE,
+		ExpectedMinSize: minContentSize,
 		Structure:       computed,
 		Comment:         comment,
 	}

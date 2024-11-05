@@ -9,7 +9,8 @@ import (
 
 // For use in statically computing elements at the very start of the application
 type MessageElementDescriptor struct {
-	ByteSize    uint32 //Byte size of 0 means variable size
+	ByteSize uint32 //Byte size of 0 means variable size
+	// accounting for message header
 	Offset      uint32
 	FieldName   string
 	Description string

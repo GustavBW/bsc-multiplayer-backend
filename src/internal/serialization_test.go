@@ -432,3 +432,18 @@ func TestRoundTrip(t *testing.T) {
 		})
 	}
 }
+
+func TestVerySpecificComputeSize(t *testing.T) {
+	data := AssignPlayerDataMessageDTO{
+		ID:       1,
+		X:        1,
+		Y:        1,
+		TankType: 1,
+		CharCode: "Ch",
+	}
+
+	_, err := Serialize(ASSIGN_PLAYER_DATA_EVENT, data)
+	if err != nil {
+		t.Fatalf("failed to serialize: %v", err)
+	}
+}

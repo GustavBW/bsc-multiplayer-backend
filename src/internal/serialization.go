@@ -3,6 +3,7 @@ package internal
 import (
 	"encoding/binary"
 	"fmt"
+	"log"
 	"math"
 	"reflect"
 
@@ -15,7 +16,7 @@ func Serialize[T any](spec *EventSpecification[T], data T) ([]byte, error) {
 	// Calculate the exact size needed
 	messageSize, err := ComputeMessageSize(spec, data)
 	if err != nil {
-		return nil, fmt.Errorf("failed to compute message size: %w", err)
+		return nil, fmt.Errorf("failed to compute message size: %s", err.Error())
 	}
 
 	// Validate against minimum size
@@ -72,6 +73,7 @@ func ComputeMessageSize[T any](spec *EventSpecification[T], data T) (uint32, err
 		if !found {
 			return 0, fmt.Errorf("field with JSON tag '%s' not found in struct", element.FieldName)
 		}
+		log.Println("[delete me]: ", field)
 
 		// Verify field type matches specification
 		if field.Kind() != element.Kind {
@@ -95,6 +97,7 @@ func ComputeMessageSize[T any](spec *EventSpecification[T], data T) (uint32, err
 			// Fixed size field
 			size += element.ByteSize
 		}
+		log.Println("[delete me]: size: ", size)
 	}
 
 	return size, nil

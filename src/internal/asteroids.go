@@ -128,6 +128,7 @@ func (amc *AsteroidsMinigameControls) onRisingEdge() error {
 			TankType: 0,
 			CharCode: string(amc.generator.GetNext().Value),
 		}
+		log.Printf("Player %d assigned char code %s\n", client.ID, players[i].CharCode)
 	}
 	amc.players = players
 

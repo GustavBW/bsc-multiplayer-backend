@@ -56,7 +56,7 @@ func ExtractMessageHeader(msg []byte) (ClientID, *EventSpecification[any], []byt
 	var specExists bool
 	if spec, specExists = ALL_EVENTS[messageID]; !specExists {
 		return 0, nil, []byte{}, fmt.Errorf("message ID %d not found", messageID)
-	} else if uint32(len(msg)) < spec.ExpectedMinSize {
+	} else if uint32(len(msg)) < spec.ExpectedMinSize+MESSAGE_HEADER_SIZE {
 		return 0, nil, []byte{}, fmt.Errorf("message size too small. Expected at least %d bytes for message type %s, got %d", spec.ExpectedMinSize, spec.Name, len(msg))
 	}
 
