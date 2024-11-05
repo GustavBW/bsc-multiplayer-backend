@@ -3,7 +3,6 @@ package internal
 import (
 	"encoding/binary"
 	"fmt"
-	"log"
 	"math"
 	"reflect"
 
@@ -73,8 +72,6 @@ func ComputeMessageSize[T any](spec *EventSpecification[T], data T) (uint32, err
 		if !found {
 			return 0, fmt.Errorf("field with JSON tag '%s' not found in struct", element.FieldName)
 		}
-		log.Println("[delete me]: ", field)
-
 		// Verify field type matches specification
 		if field.Kind() != element.Kind {
 			return 0, fmt.Errorf("field '%s': expected kind %s, got %s",
@@ -97,7 +94,6 @@ func ComputeMessageSize[T any](spec *EventSpecification[T], data T) (uint32, err
 			// Fixed size field
 			size += element.ByteSize
 		}
-		log.Println("[delete me]: size: ", size)
 	}
 
 	return size, nil

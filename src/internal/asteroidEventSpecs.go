@@ -7,7 +7,7 @@ type AsteroidSpawnMessageDTO struct {
 	X               float32 `json:"x"`
 	Y               float32 `json:"y"`
 	Health          uint8   `json:"health"`
-	TimeUntilImpact uint8   `json:"timeUntilImpact"`
+	TimeUntilImpact uint32  `json:"timeUntilImpact"`
 	Type            uint8   `json:"type"`
 	CharCode        string  `json:"charCode"`
 }
@@ -17,7 +17,7 @@ var ASTEROID_SPAWN_EVENT = NewSpecification[AsteroidSpawnMessageDTO](3000, "Aste
 	NewElementDescriptor("X Offset, relative 0-1 value to be multiplied with viewport dimensions", "x", reflect.Float32),
 	NewElementDescriptor("Y Offset, relative 0-1 value to be multiplied with viewport dimensions", "y", reflect.Float32),
 	NewElementDescriptor("Health", "health", reflect.Uint8),
-	NewElementDescriptor("Time until impact", "timeUntilImpact", reflect.Uint8),
+	NewElementDescriptor("Time until impact in milliseconds", "timeUntilImpact", reflect.Uint32),
 	NewElementDescriptor("Asteroid Type", "type", reflect.Uint8),
 	NewElementDescriptor("CharCode", "charCode", reflect.String),
 }, Handlers_IntentionalIgnoreHandler)
@@ -71,9 +71,9 @@ const (
 )
 
 type AsteroidsPlayerPenaltyMessageDTO struct {
-	PlayerID        uint32               `json:"playerID"`
-	TimoutDurationS float32              `json:"timeoutDurationS"`
-	Type            AsteroidsPenaltyType `json:"type"`
+	PlayerID         uint32               `json:"playerID"`
+	TimeoutDurationS float32              `json:"timeoutDurationS"`
+	Type             AsteroidsPenaltyType `json:"type"`
 }
 
 var PLAYER_PENALTY_EVENT = NewSpecification[AsteroidsPlayerPenaltyMessageDTO](3007, "AsteroidsPlayerPenalty", "Sent when a player recieves a timeout",

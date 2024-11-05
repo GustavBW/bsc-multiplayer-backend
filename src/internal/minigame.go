@@ -16,3 +16,16 @@ func LoadMinigameControls(diffDTO *DifficultyConfirmedForMinigameMessageDTO, lob
 		return nil, fmt.Errorf("minigame with id %d not found", diffDTO.MinigameID)
 	}
 }
+
+func OnUntimelyMinigameAbort(reason string, sourceID uint32, lobby *Lobby) error {
+	data := GenericUntimelyAbortMessageDTO{
+		Reason:   reason,
+		PlayerID: sourceID,
+	}
+	serialized, err := Serialize(GENERIC_MINIGAME_UNTIMELY_ABORT, data)
+	if err != nil {
+		return err
+	}
+	lobby.BroadcastMessage(SERVER_ID, serialized)
+	return nil
+}

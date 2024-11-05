@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"math/rand/v2"
 	"time"
 
 	"github.com/GustavBW/bsc-multiplayer-backend/src/integrations"
@@ -46,6 +47,9 @@ type AsteroidsMinigameControls struct {
 	// Initialized on begin update loop
 	// Readonly
 	timeStart time.Time
+	// Initialized on controls creation
+	// Readonly
+	difficultyInfo *DifficultyConfirmedForMinigameMessageDTO
 	// How many times a friendly fire penalty has been issued to some player
 	// Initialized on rising edge
 	// Must only be modified after rising edge by update loop routine
@@ -59,6 +63,9 @@ type AsteroidsMinigameControls struct {
 	// Initialized on controls creation
 	// Must only be modified by update loop routine
 	asteroids util.ConcurrentTypedMap[uint32, *Asteroid]
+	// Initialized on controls creation
+	// Must only be modified by update loop routine
+	asteroidSpawnCount uint32
 }
 
 func (amc *AsteroidsMinigameControls) beginUpdateLoop() {
@@ -69,6 +76,18 @@ func (amc *AsteroidsMinigameControls) beginUpdateLoop() {
 
 func (amc *AsteroidsMinigameControls) update() {
 	for amc.checkGameEndConditions() {
+		gameTimePassedMS := time.Since(amc.timeStart).Milliseconds()
+		gameAdvancementPercent := float32(gameTimePassedMS) / float32(amc.settings.SurvivalTimeS*1000)
+		var currentAsteroidSpawnRate = amc.settings.AsteroidsPerSecondAtStart + (amc.settings.AsteroidsPerSecondAt80Percent-amc.settings.AsteroidsPerSecondAtStart)*gameAdvancementPercent
+		currentAsteroidSpawnRate *= 1 + (amc.settings.SpawnRateCoopModifier * float32(len(amc.players))) //Percentile increase per player
+
+		// This math is wrong, it does take into accound that asteroidsPerSecond rising slowly during the game
+		expectedSpawnCountRightNow := int((float32(gameTimePassedMS) / 10000) * currentAsteroidSpawnRate)
+		if expectedSpawnCountRightNow > int(amc.asteroidSpawnCount) {
+			amc.spawnAsteroid()
+		}
+
+		amc.evaluateAsteroids()
 
 		time.Sleep(100 * time.Millisecond)
 	}
@@ -76,10 +95,64 @@ func (amc *AsteroidsMinigameControls) update() {
 	amc.onDismount()
 }
 
+func (amc *AsteroidsMinigameControls) evaluateAsteroids() {
+	// Run through all asteroids and see if they've hit the colony
+	amc.asteroids.Range(func(key uint32, asteroid *Asteroid) bool {
+		if time.Since(asteroid.SpawnTimeStamp).Milliseconds() >= int64(asteroid.TimeUntilImpact) {
+			amc.asteroids.Delete(key)
+			amc.colonyHPLeft -= uint32(asteroid.Health)
+			data := AsteroidImpactOnColonyMessageDTO{
+				ID:           key,
+				ColonyHPLeft: amc.colonyHPLeft,
+			}
+			serialized, err := Serialize(ASTEROID_IMPACT_EVENT, data)
+			if err != nil {
+				log.Printf("Error serializing asteroid impact event: %s\n", err.Error())
+				OnUntimelyMinigameAbort("Error serializing asteroid impact event", SERVER_ID, amc.lobby)
+				return false
+			}
+			amc.lobby.BroadcastMessage(SERVER_ID, serialized)
+		}
+		return true
+	})
+}
+
 // Returns false if the game has ended
 func (amc *AsteroidsMinigameControls) checkGameEndConditions() bool {
 	// Check if colony is dead
+	if amc.colonyHPLeft <= 0 {
+		//Send game over event
+		data := MinigameLostMessageDTO{
+			ColonyLocationID: amc.difficultyInfo.ColonyLocationID,
+			MinigameID:       1,
+			DifficultyID:     amc.difficultyInfo.DifficultyID,
+			DifficultyName:   amc.difficultyInfo.DifficultyName,
+		}
+		serialized, err := Serialize(MINIGAME_LOST_EVENT, data)
+		if err != nil {
+			log.Printf("Error serializing minigame lost event: %s\n", err.Error())
+			return OnUntimelyMinigameAbort("Error serializing minigame lost event", SERVER_ID, amc.lobby) != nil
+		}
+		amc.lobby.BroadcastMessage(SERVER_ID, serialized)
+		return false
+	}
 	// Check if the players have survived the survival time
+	if time.Since(amc.timeStart).Seconds() >= float64(amc.settings.SurvivalTimeS) {
+		//Send game victory event
+		data := MinigameWonMessageDTO{
+			ColonyLocationID: amc.difficultyInfo.ColonyLocationID,
+			MinigameID:       1,
+			DifficultyID:     amc.difficultyInfo.DifficultyID,
+			DifficultyName:   amc.difficultyInfo.DifficultyName,
+		}
+		serialized, err := Serialize(MINIGAME_WON_EVENT, data)
+		if err != nil {
+			log.Printf("Error serializing minigame won event: %s\n", err.Error())
+			return OnUntimelyMinigameAbort("Error serializing minigame won event", SERVER_ID, amc.lobby) != nil
+		}
+		amc.lobby.BroadcastMessage(SERVER_ID, serialized)
+		return false
+	}
 	return true
 }
 
@@ -145,14 +218,106 @@ func (amc *AsteroidsMinigameControls) onRisingEdge() error {
 	return nil
 }
 
+func (amc *AsteroidsMinigameControls) spawnAsteroid() {
+	startX := rand.Float32()*0.9 + 0.1
+	startY := rand.Float32()*0.9 + 0.1
+	id := amc.nextAsteroidID
+	amc.nextAsteroidID++
+	charCode := string(amc.generator.GetNext().Value)
+	timeTillImpactMS := (rand.Float32()*(amc.settings.MaxTimeTillImpactS-amc.settings.MinTimeTillImpactS) + amc.settings.MinTimeTillImpactS) * 1000
+	health := math.Ceil(float64(amc.settings.AsteroidMaxHealth) * rand.Float64())
+
+	asteroid := &Asteroid{
+		AsteroidSpawnMessageDTO: AsteroidSpawnMessageDTO{
+			ID:              id,
+			X:               startX,
+			Y:               startY,
+			Health:          uint8(health),
+			TimeUntilImpact: uint32(timeTillImpactMS),
+			Type:            0,
+			CharCode:        charCode,
+		},
+		SpawnTimeStamp: time.Now(),
+	}
+
+	serialized, err := Serialize(ASTEROID_SPAWN_EVENT, asteroid.AsteroidSpawnMessageDTO)
+	if err != nil {
+		log.Printf("Error serializing asteroid spawn event: %s\n", err.Error())
+		OnUntimelyMinigameAbort("Error serializing asteroid spawn event", SERVER_ID, amc.lobby)
+		return
+	}
+
+	amc.asteroids.Store(id, asteroid)
+	amc.asteroidSpawnCount++
+	amc.lobby.BroadcastMessage(SERVER_ID, serialized)
+}
+
+func (amc *AsteroidsMinigameControls) onPlayerShot(msg *PlayerShootAtCodeMessageDTO) {
+	var somethingWasHit bool = false
+	amc.asteroids.Range(func(key uint32, asteroid *Asteroid) bool {
+		if asteroid.CharCode == msg.CharCode {
+			asteroid.Health--
+			if asteroid.Health == 0 {
+				amc.asteroids.Delete(key)
+			}
+			somethingWasHit = true
+		}
+		return true
+	})
+
+	for _, player := range amc.players {
+		if player.CharCode == msg.CharCode {
+			// Ally player hit stun duration is applied client side
+			// However a friendly fire penalty is issued to the offending player
+			amc.friendlyFirePenaltyCountMap[player.ID]++
+			currentOffendCount := amc.friendlyFirePenaltyCountMap[player.ID]
+			totalTimeout := float64(amc.settings.FriendlyFirePenaltyS) * math.Pow(float64(amc.settings.FriendlyFirePenaltyMultiplier), float64(currentOffendCount))
+			data := AsteroidsPlayerPenaltyMessageDTO{
+				PlayerID:         msg.PlayerID,
+				TimeoutDurationS: float32(totalTimeout),
+				Type:             PLAYER_PENALTY_TYPE_FRIENDLY_FIRE,
+			}
+			serialized, err := Serialize(PLAYER_PENALTY_EVENT, data)
+			if err != nil {
+				log.Printf("Error serializing player penalty event: %s\n", err.Error())
+				OnUntimelyMinigameAbort("Error serializing player penalty event", SERVER_ID, amc.lobby)
+				return
+			}
+			amc.lobby.BroadcastMessage(SERVER_ID, serialized)
+		}
+	}
+
+	if !somethingWasHit {
+		// Miss penalty
+		data := AsteroidsPlayerPenaltyMessageDTO{
+			PlayerID:         msg.PlayerID,
+			TimeoutDurationS: amc.settings.TimeBetweenShotsS,
+			Type:             PLAYER_PENALTY_TYPE_MISS,
+		}
+		serialized, err := Serialize(PLAYER_PENALTY_EVENT, data)
+		if err != nil {
+			log.Printf("Error serializing player penalty event: %s\n", err.Error())
+			return
+		}
+		amc.lobby.BroadcastMessage(SERVER_ID, serialized)
+	}
+}
+
+// Intentionally does nothing right now
 func (amc *AsteroidsMinigameControls) onFallingEdge() error {
 	log.Println("Asteroids on falling edge for lobby id: ", amc.lobby.ID)
 	return nil
 }
 
 func (amc *AsteroidsMinigameControls) onMessage(msg *MessageEntry) error {
+	// There is, no joke, just this one event to listen for
 	switch msg.Spec.ID {
 	case PLAYER_SHOOT_EVENT.ID:
+		deserialized, err := Deserialize(PLAYER_SHOOT_EVENT, msg.Remainder, true)
+		if err != nil {
+			return fmt.Errorf("error deserializing player shoot event: %s", err.Error())
+		}
+		amc.onPlayerShot(deserialized)
 	}
 	return nil
 }
@@ -186,13 +351,15 @@ func GetAsteroidMinigameControls(diff *DifficultyConfirmedForMinigameMessageDTO,
 	}
 
 	minigame := &AsteroidsMinigameControls{
-		settings:       &baseSettings,
-		lobby:          lobby,
-		onDismount:     onDismount,
-		generator:      generator,
-		colonyHPLeft:   baseSettings.ColonyHealth,
-		nextAsteroidID: 0,
-		asteroids:      util.ConcurrentTypedMap[uint32, *Asteroid]{},
+		settings:           &baseSettings,
+		lobby:              lobby,
+		onDismount:         onDismount,
+		generator:          generator,
+		colonyHPLeft:       baseSettings.ColonyHealth,
+		nextAsteroidID:     0,
+		asteroids:          util.ConcurrentTypedMap[uint32, *Asteroid]{},
+		asteroidSpawnCount: 0,
+		difficultyInfo:     diff,
 	}
 
 	return &GenericMinigameControls{
