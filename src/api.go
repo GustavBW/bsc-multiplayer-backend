@@ -104,11 +104,9 @@ func performHealthCheckHandler(w http.ResponseWriter, r *http.Request, lobbyMana
 }
 
 func createLobbyHandler(lobbyManager *internal.LobbyManager, w http.ResponseWriter, r *http.Request) {
-	ownerIDStr := r.URL.Query().Get("ownerID")
-	colonyIDStr := r.URL.Query().Get("colonyID")
+	ownerID, ownerIDErr := getAsUint32(r, "ownerID")
+	colonyID, colonyIDErr := getAsUint32(r, "colonyID")
 	userSetEncodingStr := r.URL.Query().Get("encoding")
-	// Parse both as uint32
-	ownerID, ownerIDErr := strconv.ParseUint(ownerIDStr, 10, 32)
 	if ownerIDErr != nil {
 		//log.Println("[] Error parsing ownerID: ", ownerIDErr)
 		w.Header().Set("Default-Debug-Header", "Error in ownerID query param: "+ownerIDErr.Error())
@@ -117,7 +115,6 @@ func createLobbyHandler(lobbyManager *internal.LobbyManager, w http.ResponseWrit
 		return
 	}
 
-	colonyID, colonyIDErr := strconv.ParseUint(colonyIDStr, 10, 32)
 	if colonyIDErr != nil {
 		//log.Println("[] Error parsing colonyID: ", colonyIDErr)
 		w.Header().Set("Default-Debug-Header", "Error in colonyID query param: "+colonyIDErr.Error())
