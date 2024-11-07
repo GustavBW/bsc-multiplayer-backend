@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/GustavBW/bsc-multiplayer-backend/src/internal"
 	"github.com/GustavBW/bsc-multiplayer-backend/src/meta"
@@ -151,6 +152,7 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
 		return true // Allow all origins for simplicity
 	},
+	HandshakeTimeout: time.Duration(5000 * time.Millisecond), // No timeout
 }
 
 func getAsInt(r *http.Request, key string) (int, error) {
