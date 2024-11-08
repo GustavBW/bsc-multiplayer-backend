@@ -50,9 +50,7 @@ func ExtractMessageHeader(msg []byte) (ClientID, *EventSpecification[any], []byt
 	}
 	// Extract userID and messageID (uint32)
 	userID := binary.BigEndian.Uint32(msg[:4]) // 0, 1 2 3
-	log.Println("Extracted userID: ", userID)
 	messageID := binary.BigEndian.Uint32(msg[4:8])
-	log.Println("Extracted messageID: ", messageID)
 
 	var spec *EventSpecification[any]
 	var specExists bool

@@ -601,5 +601,31 @@ func TestSerializeDebugMessage(t *testing.T) {
 	if string(messageBytes) != "test" {
 		t.Errorf("expected message 'test', got %q", string(messageBytes))
 	}
+}
 
+func TestSerializePlayerLeft(t *testing.T) {
+	data := PlayerLeftMessageDTO{
+		PlayerID: 1,
+		IGN:      "test",
+	}
+
+	msg, err := Serialize(PLAYER_LEFT_EVENT, data)
+	if err != nil {
+		t.Fatalf("failed to serialize: %v", err)
+	}
+	if len(msg) != 12 {
+		t.Fatalf("expected 12 bytes, got %d", len(msg))
+	}
+	eventIDBytes := msg[0:4]
+	if binary.BigEndian.Uint32(eventIDBytes) != PLAYER_LEFT_EVENT.ID {
+		t.Errorf("expected event id %d, got %d", PLAYER_LEFT_EVENT.ID, binary.BigEndian.Uint32(eventIDBytes))
+	}
+	idBytes := msg[4:8]
+	if binary.BigEndian.Uint32(idBytes) != 1 {
+		t.Errorf("expected player id 1, got %d", binary.BigEndian.Uint32(msg[0:4]))
+	}
+	nameBytes := msg[8:]
+	if string(nameBytes) != "test" {
+		t.Errorf("expected name 'test', got %q", string(nameBytes))
+	}
 }

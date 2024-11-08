@@ -191,7 +191,7 @@ var LOCATION_UPGRADE_EVENT = NewSpecification[LocationUpgradeMessageDTO](1003, "
 	SERVER_ONLY, Handlers_IntentionalIgnoreHandler)
 
 // 1000-1999: Colony Events
-var COLONY_EVENTS = NewSpecMap(ENTER_LOCATION_EVENT, PLAYER_MOVE_EVENT)
+var COLONY_EVENTS = NewSpecMap(ENTER_LOCATION_EVENT, PLAYER_MOVE_EVENT, LOCATION_UPGRADE_EVENT)
 
 var DIFFICULTY_SELECT_FOR_MINIGAME_EVENT = NewSpecification[DifficultySelectForMinigameMessageDTO](2000, "DifficultySelectForMinigame", "Sent when the owner selects a difficulty (NOT CONFIRM)",
 	OWNER_ONLY, Handlers_NoCheckReplicate)

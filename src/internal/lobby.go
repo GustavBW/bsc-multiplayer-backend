@@ -277,10 +277,10 @@ func (l *Lobby) runPostProcess() {
 					SendDebugInfoToClient(messageInfo.Client, 400, "Error deserializing message: "+err.Error())
 					return
 				}
-				messageBody := GENERIC_MINIGAME_UNTIMELY_ABORT.CopyIDBytes()
-				messageBody = append(messageBody, messageInfo.Client.IDBytes...)
-				messageBody = append(messageBody, []byte(deserialized.Reason)...)
-				l.BroadcastMessage(SERVER_ID, messageBody)
+				serErr := OnUntimelyMinigameAbort(deserialized.Reason, messageInfo.Client.ID, l)
+				if serErr != nil {
+					log.Printf("[lobby] Error sending untimely abort message: %v", err)
+				}
 				l.activityTracker.ReleaseLock()
 			}
 
@@ -296,19 +296,19 @@ func (l *Lobby) runPostProcess() {
 				})
 				controls, err := LoadMinigameControls(diff, l, l.dismountCurrentActivity)
 				if err != nil {
-					messageBody := GENERIC_MINIGAME_UNTIMELY_ABORT.CopyIDBytes()
-					messageBody = append(messageBody, SERVER_ID_BYTES...)
-					messageBody = append(messageBody, []byte(err.Error())...)
-					l.BroadcastMessage(SERVER_ID, messageBody)
+					err := OnUntimelyMinigameAbort(err.Error(), SERVER_ID, l)
+					if err != nil {
+						log.Printf("[lobby] Error sending untimely abort message: %v", err)
+					}
 					l.activityTracker.ReleaseLock()
 					return
 				}
 
 				if err := controls.ExecRisingEdge(); err != nil {
-					messageBody := GENERIC_MINIGAME_UNTIMELY_ABORT.CopyIDBytes()
-					messageBody = append(messageBody, SERVER_ID_BYTES...)
-					messageBody = append(messageBody, []byte(err.Error())...)
-					l.BroadcastMessage(SERVER_ID, messageBody)
+					err := OnUntimelyMinigameAbort(err.Error(), SERVER_ID, l)
+					if err != nil {
+						log.Printf("[lobby] Error sending untimely abort message: %v", err)
+					}
 					l.activityTracker.ReleaseLock()
 					return
 				}
@@ -406,12 +406,18 @@ func (lobby *Lobby) RemoveClient(client *Client) {
 	lobby.Clients.Delete(client.ID)
 	client.Conn.Close()
 
-	//Todo: Update activity tracker to not count this guy anymore
-	msg := PLAYER_LEFT_EVENT.CopyIDBytes()
-	msg = append(msg, client.IDBytes...)
-	msg = append(msg, []byte(client.IGN)...)
+	lobby.activityTracker.RemoveParticipant(client)
 
-	lobby.BroadcastMessage(SERVER_ID, msg)
+	data := PlayerLeftMessageDTO{
+		PlayerID: client.ID,
+		IGN:      client.IGN,
+	}
+	serialized, err := Serialize(PLAYER_LEFT_EVENT, data)
+	if err != nil {
+		log.Printf("[lobby] Error serializing player left event: %v", err)
+	} else {
+		lobby.BroadcastMessage(SERVER_ID, serialized)
+	}
 }
 
 // Notify all clients in the lobby that the lobby is closing
