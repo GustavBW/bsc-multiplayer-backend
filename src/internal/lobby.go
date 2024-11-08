@@ -291,8 +291,11 @@ func (l *Lobby) runPostProcess() {
 			if l.activityTracker.AdvanceIfAllPlayersHaveLoadedIn() {
 				// Find game loop.
 				var diff *DifficultyConfirmedForMinigameMessageDTO
-				l.activityTracker.diffConfirmed.Do(func(v *DifficultyConfirmedForMinigameMessageDTO) {
-					diff = v
+				l.activityTracker.diffConfirmed.Do(func(v **DifficultyConfirmedForMinigameMessageDTO) {
+					diff = *v // Super unsafe, may cause nil pointer derefence on several levels
+					// Either right here, or later
+					// However, as of current control flow, this shouldn't be able to happen
+					// So if it fails, let it fail, as the error wouldn't be here, but earlier.
 				})
 				controls, err := LoadMinigameControls(diff, l, l.dismountCurrentActivity)
 				if err != nil {

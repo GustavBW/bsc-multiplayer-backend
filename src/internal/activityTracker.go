@@ -93,8 +93,8 @@ func (ta *ActivityTracker) SetDiffConfirmed(dto *DifficultyConfirmedForMinigameM
 // Returns false if no activity id or difficulty id has been set yet
 func (ta *ActivityTracker) LockIn(numPlayersRightNow uint32) bool {
 	var isNil = true
-	ta.diffConfirmed.Do(func(v *DifficultyConfirmedForMinigameMessageDTO) {
-		isNil = v == nil
+	ta.diffConfirmed.Do(func(v **DifficultyConfirmedForMinigameMessageDTO) {
+		isNil = (v == nil || (v != nil && *v == nil))
 	})
 	if isNil {
 		return false
