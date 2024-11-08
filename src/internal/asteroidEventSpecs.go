@@ -3,13 +3,13 @@ package internal
 import "reflect"
 
 type AsteroidSpawnMessageDTO struct {
-	ID              uint32  `json:"id"`
-	X               float32 `json:"x"`
-	Y               float32 `json:"y"`
-	Health          uint8   `json:"health"`
-	TimeUntilImpact uint32  `json:"timeUntilImpact"`
-	Type            uint8   `json:"type"`
-	CharCode        string  `json:"charCode"`
+	ID              uint32  `json:"id" comment:"ID of asteroid"`
+	X               float32 `json:"x" comment:"X Offset, relative 0-1 value to be multiplied with viewport width"`
+	Y               float32 `json:"y" comment:"Y Offset, relative 0-1 value to be multiplied with viewport height"`
+	Health          uint8   `json:"health" comment:"Asteroid Health"`
+	TimeUntilImpact uint32  `json:"timeUntilImpact" comment:"Time until impact in milliseconds"`
+	Type            uint8   `json:"type" comment:"Asteroid Type (not in use)"`
+	CharCode        string  `json:"charCode" comment:"Sequence of Letters to be pressed to shoot at this asteroid"`
 }
 
 var ASTEROID_SPAWN_EVENT = NewSpecification[AsteroidSpawnMessageDTO](3000, "AsteroidsAsteroidSpawn", "Sent when the server spawns a new asteroid", SERVER_ONLY, []ShortElementDescriptor{
@@ -23,11 +23,11 @@ var ASTEROID_SPAWN_EVENT = NewSpecification[AsteroidSpawnMessageDTO](3000, "Aste
 }, Handlers_IntentionalIgnoreHandler)
 
 type AssignPlayerDataMessageDTO struct {
-	ID       uint32  `json:"id"`
-	X        float32 `json:"x"`
-	Y        float32 `json:"y"`
-	TankType uint8   `json:"type"`
-	CharCode string  `json:"code"`
+	ID       uint32  `json:"id" comment:"Player ID"`
+	X        float32 `json:"x" comment:"X Position, relative 0-1 value to be multiplied with viewport width"`
+	Y        float32 `json:"y" comment:"Y Position, relative 0-1 value to be multiplied with viewport height"`
+	TankType uint8   `json:"type" comment:"Tank Type (not in use)"`
+	CharCode string  `json:"code" comment:"Sequence of Letters to be pressed to accidentally shoot at this player"`
 }
 
 //AssignPlayerDataEvent
@@ -41,8 +41,8 @@ var ASSIGN_PLAYER_DATA_EVENT = NewSpecification[AssignPlayerDataMessageDTO](3001
 	}, Handlers_IntentionalIgnoreHandler)
 
 type AsteroidImpactOnColonyMessageDTO struct {
-	ID           uint32 `json:"id"`
-	ColonyHPLeft uint32 `json:"colonyHPLeft"`
+	ID           uint32 `json:"id" comment:"Asteroid ID"`
+	ColonyHPLeft uint32 `json:"colonyHPLeft" comment:"Health Remaning"`
 }
 
 //AsteroidImpactOnColonyEvent
@@ -53,8 +53,8 @@ var ASTEROID_IMPACT_EVENT = NewSpecification[AsteroidImpactOnColonyMessageDTO](3
 	}, Handlers_IntentionalIgnoreHandler)
 
 type PlayerShootAtCodeMessageDTO struct {
-	PlayerID uint32 `json:"id"`
-	CharCode string `json:"code"`
+	PlayerID uint32 `json:"id" comment:"Player ID"`
+	CharCode string `json:"code" comment:"What char combination the player shot at"`
 }
 
 //PlayerShootAtCodeEvent
@@ -71,9 +71,9 @@ const (
 )
 
 type AsteroidsPlayerPenaltyMessageDTO struct {
-	PlayerID         uint32               `json:"playerID"`
-	TimeoutDurationS float32              `json:"timeoutDurationS"`
-	Type             AsteroidsPenaltyType `json:"type"`
+	PlayerID         uint32               `json:"playerID" comment:"Player ID"`
+	TimeoutDurationS float32              `json:"timeoutDurationS" comment:"Penalty duration in seconds"`
+	Type             AsteroidsPenaltyType `json:"type" comment:"miss or friendlyFire"`
 }
 
 var PLAYER_PENALTY_EVENT = NewSpecification[AsteroidsPlayerPenaltyMessageDTO](3007, "AsteroidsPlayerPenalty", "Sent when a player recieves a timeout",

@@ -478,7 +478,7 @@ func TestSerializePlayerJoined(t *testing.T) {
 func TestSerializeGenericUntimelyAbort(t *testing.T) {
 	data := GenericUntimelyAbortMessageDTO{
 		Reason:   "test",
-		PlayerID: 1,
+		SourceID: 1,
 	}
 
 	msg, err := Serialize(GENERIC_MINIGAME_UNTIMELY_ABORT, data)

@@ -75,6 +75,34 @@ func NewSpecification[T any](id MessageID, name string, comment string, whoMaySe
 	}
 }
 
+// Derive a reference structure description from a generic type param.
+// Will error if the type is not a struct or general field name isn't provided with the JSON tag.
+func DeriveReferenceDescriptionFromT[T any]() (ReferenceStructure, error) {
+	var tNull T
+	tVal := reflect.ValueOf(tNull)
+
+	if tVal.Type().Kind() != reflect.Struct {
+		return nil, fmt.Errorf("t is not a struct")
+	}
+
+	var result ReferenceStructure
+	for i := 0; i < tVal.Type().NumField(); i++ {
+		field := tVal.Type().Field(i)
+		fieldName, err := util.GetFieldNameFromTag(field)
+		if err != nil {
+			return nil, fmt.Errorf("unable to derive reference structure for %s: %s", tVal.Type().String(), err)
+		}
+		kind := field.Type.Kind()
+		comment, err := util.GetCommentValue(field)
+		if err != nil {
+			log.Printf("Warning: Deriving reference structure for %s: %s", tVal.Type().String(), err)
+			comment = "no comment provided"
+		}
+		result = append(result, NewElementDescriptor(comment, fieldName, kind))
+	}
+	return result, nil
+}
+
 var OWNER_ONLY = map[OriginType]bool{
 	ORIGIN_TYPE_GUEST:  false,
 	ORIGIN_TYPE_OWNER:  true,

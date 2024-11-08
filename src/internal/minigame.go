@@ -27,7 +27,7 @@ func LoadMinigameControls(diffDTO *DifficultyConfirmedForMinigameMessageDTO, lob
 func OnUntimelyMinigameAbort(reason string, sourceID uint32, lobby *Lobby) error {
 	data := GenericUntimelyAbortMessageDTO{
 		Reason:   reason,
-		PlayerID: sourceID,
+		SourceID: sourceID,
 	}
 	serialized, err := Serialize(GENERIC_MINIGAME_UNTIMELY_ABORT, data)
 	if err != nil {
