@@ -4,6 +4,13 @@ import (
 	"fmt"
 )
 
+const (
+	MINIGAME_STATE_VICTORY = iota
+	MINIGAME_STATE_DEFEAT
+	MINIGAME_STATE_ABORT
+	MINIGAME_STATE_UNDETERMINED
+)
+
 func LoadMinigameControls(diffDTO *DifficultyConfirmedForMinigameMessageDTO, lobby *Lobby, onDismount func()) (*GenericMinigameControls, error) {
 	if diffDTO == nil {
 		return nil, fmt.Errorf("diffDTO is nil")

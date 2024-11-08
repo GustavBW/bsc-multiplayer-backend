@@ -59,6 +59,10 @@ func NewSpecification[T any](id MessageID, name string, comment string, whoMaySe
 
 	var idAsBytes = util.BytesOfUint32(id)
 	minContentSize, computed := ComputeStructure(name, structure)
+	err := VerifyStructureTCompliance[T](computed)
+	if err != nil {
+		panic(fmt.Sprintf("Specification error: Error verifying T <=> Structure compliance: %v", err))
+	}
 	return &EventSpecification[T]{
 		Name:            name,
 		SendPermissions: whoMaySend,
@@ -159,6 +163,12 @@ var PLAYER_MOVE_EVENT = NewSpecification[PlayerMoveMessageDTO](1002, "PlayerMove
 	NewElementDescriptor("Player ID", "playerID", reflect.Uint32),
 	NewElementDescriptor("Colony Location ID", "colonyLocationID", reflect.Uint32), //Referenced through array index in client.go
 }, Handlers_NoCheckReplicate)
+
+var LOCATION_UPGRADE_EVENT = NewSpecification[LocationUpgradeMessageDTO](1003, "LocationUpgrade", "Sent from the server when a minigame is won which upgrades a location",
+	SERVER_ONLY, []ShortElementDescriptor{
+		NewElementDescriptor("Colony Location ID", "colonyLocationID", reflect.Uint32),
+		NewElementDescriptor("New Level", "level", reflect.Uint32),
+	}, Handlers_IntentionalIgnoreHandler)
 
 // 1000-1999: Colony Events
 var COLONY_EVENTS = NewSpecMap(ENTER_LOCATION_EVENT, PLAYER_MOVE_EVENT)

@@ -6,6 +6,7 @@ import (
 	"log"
 	"math"
 	"math/rand/v2"
+	"sync/atomic"
 	"time"
 
 	"github.com/GustavBW/bsc-multiplayer-backend/src/integrations"
@@ -362,11 +363,15 @@ func GetAsteroidMinigameControls(diff *DifficultyConfirmedForMinigameMessageDTO,
 		difficultyInfo:     diff,
 	}
 
+	state := atomic.Uint32{}
+	state.Store(MINIGAME_STATE_UNDETERMINED)
+
 	return &GenericMinigameControls{
 		ExecRisingEdge:  minigame.onRisingEdge,
 		StartLoop:       minigame.beginUpdateLoop,
 		ExecFallingEdge: minigame.onFallingEdge,
 		OnMessage:       minigame.onMessage,
+		State:           &state,
 	}, nil
 }
 

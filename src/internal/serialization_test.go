@@ -447,3 +447,159 @@ func TestVerySpecificComputeSize(t *testing.T) {
 		t.Fatalf("failed to serialize: %v", err)
 	}
 }
+
+func TestSerializePlayerJoined(t *testing.T) {
+	data := PlayerJoinedMessageDTO{
+		PlayerID: 1,
+		IGN:      "test",
+	}
+
+	msg, err := Serialize(PLAYER_JOINED_EVENT, data)
+	if err != nil {
+		t.Fatalf("failed to serialize: %v", err)
+	}
+	if len(msg) != 12 {
+		t.Fatalf("expected 12 bytes, got %d", len(msg))
+	}
+	eventIDBytes := msg[0:4]
+	if binary.BigEndian.Uint32(eventIDBytes) != PLAYER_JOINED_EVENT.ID {
+		t.Errorf("expected event id %d, got %d", PLAYER_JOINED_EVENT.ID, binary.BigEndian.Uint32(eventIDBytes))
+	}
+	idBytes := msg[4:8]
+	if binary.BigEndian.Uint32(idBytes) != 1 {
+		t.Errorf("expected player id 1, got %d", binary.BigEndian.Uint32(msg[0:4]))
+	}
+	nameBytes := msg[8:]
+	if string(nameBytes) != "test" {
+		t.Errorf("expected name 'test', got %q", string(nameBytes))
+	}
+}
+
+func TestSerializeGenericUntimelyAbort(t *testing.T) {
+	data := GenericUntimelyAbortMessageDTO{
+		Reason:   "test",
+		PlayerID: 1,
+	}
+
+	msg, err := Serialize(GENERIC_MINIGAME_UNTIMELY_ABORT, data)
+	if err != nil {
+		t.Fatalf("failed to serialize: %v", err)
+	}
+	if len(msg) != 12 {
+		t.Fatalf("expected 12 bytes, got %d", len(msg))
+	}
+	eventIDBytes := msg[0:4]
+	if binary.BigEndian.Uint32(eventIDBytes) != GENERIC_MINIGAME_UNTIMELY_ABORT.ID {
+		t.Errorf("expected event id %d, got %d", GENERIC_MINIGAME_UNTIMELY_ABORT.ID, binary.BigEndian.Uint32(eventIDBytes))
+	}
+	idBytes := msg[4:8]
+	if binary.BigEndian.Uint32(idBytes) != 1 {
+		t.Errorf("expected player id 1, got %d", binary.BigEndian.Uint32(msg[0:4]))
+	}
+	reasonBytes := msg[8:]
+	if string(reasonBytes) != "test" {
+		t.Errorf("expected reason 'test', got %q", string(reasonBytes))
+	}
+}
+
+func TestSerializeMinigameWon(t *testing.T) {
+	data := MinigameWonMessageDTO{
+		ColonyLocationID: 1,
+		MinigameID:       2,
+		DifficultyID:     3,
+		DifficultyName:   "test",
+	}
+
+	msg, err := Serialize(MINIGAME_WON_EVENT, data)
+	if err != nil {
+		t.Fatalf("failed to serialize: %v", err)
+	}
+	if len(msg) != 20 {
+		t.Fatalf("expected 12 bytes, got %d", len(msg))
+	}
+	eventIDBytes := msg[0:4]
+	if binary.BigEndian.Uint32(eventIDBytes) != MINIGAME_WON_EVENT.ID {
+		t.Errorf("expected event id %d, got %d", MINIGAME_WON_EVENT.ID, binary.BigEndian.Uint32(eventIDBytes))
+	}
+	colLocBytes := msg[4:8]
+	if binary.BigEndian.Uint32(colLocBytes) != 1 {
+		t.Errorf("expected colony location id 1, got %d", binary.BigEndian.Uint32(msg[0:4]))
+	}
+	minigameIDBytes := msg[8:12]
+	if binary.BigEndian.Uint32(minigameIDBytes) != 2 {
+		t.Errorf("expected minigame id 2, got %d", binary.BigEndian.Uint32(msg[0:4]))
+	}
+	diffIDBytes := msg[12:16]
+	if binary.BigEndian.Uint32(diffIDBytes) != 3 {
+		t.Errorf("expected difficulty id 3, got %d", binary.BigEndian.Uint32(msg[0:4]))
+	}
+	nameBytes := msg[16:]
+	if string(nameBytes) != "test" {
+		t.Errorf("expected name 'test', got %q", string(nameBytes))
+	}
+}
+
+func TestSerializeMinigameLost(t *testing.T) {
+	data := MinigameLostMessageDTO{
+		ColonyLocationID: 1,
+		MinigameID:       2,
+		DifficultyID:     3,
+		DifficultyName:   "test",
+	}
+
+	msg, err := Serialize(MINIGAME_LOST_EVENT, data)
+	if err != nil {
+		t.Fatalf("failed to serialize: %v", err)
+	}
+	if len(msg) != 20 {
+		t.Fatalf("expected 12 bytes, got %d", len(msg))
+	}
+	eventIDBytes := msg[0:4]
+	if binary.BigEndian.Uint32(eventIDBytes) != MINIGAME_LOST_EVENT.ID {
+		t.Errorf("expected event id %d, got %d", MINIGAME_LOST_EVENT.ID, binary.BigEndian.Uint32(eventIDBytes))
+	}
+	colLocBytes := msg[4:8]
+	if binary.BigEndian.Uint32(colLocBytes) != 1 {
+		t.Errorf("expected colony location id 1, got %d", binary.BigEndian.Uint32(msg[0:4]))
+	}
+	minigameIDBytes := msg[8:12]
+	if binary.BigEndian.Uint32(minigameIDBytes) != 2 {
+		t.Errorf("expected minigame id 2, got %d", binary.BigEndian.Uint32(msg[0:4]))
+	}
+	diffIDBytes := msg[12:16]
+	if binary.BigEndian.Uint32(diffIDBytes) != 3 {
+		t.Errorf("expected difficulty id 3, got %d", binary.BigEndian.Uint32(msg[0:4]))
+	}
+	nameBytes := msg[16:]
+	if string(nameBytes) != "test" {
+		t.Errorf("expected name 'test', got %q", string(nameBytes))
+	}
+}
+
+func TestSerializeDebugMessage(t *testing.T) {
+	data := DebugEventMessageDTO{
+		Code:    1,
+		Message: "test",
+	}
+
+	msg, err := Serialize(DEBUG_EVENT, data)
+	if err != nil {
+		t.Fatalf("failed to serialize: %v", err)
+	}
+	if len(msg) != 12 {
+		t.Fatalf("expected 12 bytes, got %d", len(msg))
+	}
+	eventIDBytes := msg[0:4]
+	if binary.BigEndian.Uint32(eventIDBytes) != DEBUG_EVENT.ID {
+		t.Errorf("expected event id %d, got %d", DEBUG_EVENT.ID, binary.BigEndian.Uint32(eventIDBytes))
+	}
+	codeBytes := msg[4:8]
+	if binary.BigEndian.Uint32(codeBytes) != 1 {
+		t.Errorf("expected code 1, got %d", binary.BigEndian.Uint32(msg[0:4]))
+	}
+	messageBytes := msg[8:]
+	if string(messageBytes) != "test" {
+		t.Errorf("expected message 'test', got %q", string(messageBytes))
+	}
+
+}

@@ -153,13 +153,21 @@ func (lm *LobbyManager) JoinLobby(lobbyID LobbyID, clientID ClientID, clientIGN 
 		return &LobbyJoinError{Reason: "User is already in lobby", Type: JoinErrorAlreadyInLobby, LobbyID: lobbyID}
 	}
 
-	client := NewClient(clientID, clientIGN, util.Ternary(lobby.OwnerID == clientID, ORIGIN_TYPE_OWNER, ORIGIN_TYPE_GUEST), conn, lobby.Encoding)
+	client := NewClient(clientID, clientIGN,
+		util.Ternary(lobby.OwnerID == clientID, ORIGIN_TYPE_OWNER, ORIGIN_TYPE_GUEST),
+		conn, lobby.Encoding,
+	)
 
-	userJoinedMsg := PLAYER_JOINED_EVENT.CopyIDBytes()
-	userJoinedMsg = append(userJoinedMsg, client.IDBytes...)
-	userJoinedMsg = append(userJoinedMsg, []byte(client.IGN)...)
+	msg, err := Serialize(PLAYER_JOINED_EVENT, PlayerJoinedMessageDTO{
+		PlayerID: client.ID,
+		IGN:      client.IGN,
+	})
+	if err != nil {
+		return &LobbyJoinError{Reason: "Failed to serialize player joined message", Type: JoinErrorSerializationFailure, LobbyID: lobbyID}
+	}
+
 	//Broadcasting before we add the client to the lobbies client map
-	lobby.BroadcastMessage(SERVER_ID, userJoinedMsg)
+	lobby.BroadcastMessage(SERVER_ID, msg)
 
 	lobby.Clients.Store(client.ID, client)
 	// Handle the user's connection

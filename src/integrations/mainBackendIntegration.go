@@ -30,6 +30,38 @@ type CloseColonyRequest struct {
 	PlayerID uint32 `json:"playerId"`
 }
 
+type UpgradeLocationResponseDTO struct {
+	ColonyLocationID uint32 `json:"id"`
+	Level            uint32 `json:"level"`
+}
+
+func (m *MainBackendIntegration) UpgradeLocation(colonyID uint32, colLocID uint32) (*UpgradeLocationResponseDTO, error) {
+	url := fmt.Sprintf(m.baseURL+"/colony/%d/location/%d/upgrade", colonyID, colLocID)
+
+	req, err := http.NewRequest(http.MethodPost, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("error creating request: %s", err.Error())
+	}
+
+	resp, err := getConfiguredClient().Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("error sending request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code: %d, headers: %s", resp.StatusCode, resp.Header)
+	}
+
+	var res UpgradeLocationResponseDTO
+	decodeErr := json.NewDecoder(resp.Body).Decode(&res)
+	if decodeErr != nil {
+		return nil, fmt.Errorf("error decoding response: %s", decodeErr.Error())
+	}
+
+	return &res, nil
+}
+
 func (m *MainBackendIntegration) CloseColony(colonyID uint32, ownerID uint32) error {
 	url := fmt.Sprintf(m.baseURL+"/colony/%d/close", colonyID)
 

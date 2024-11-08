@@ -28,6 +28,11 @@ type PlayerMoveMessageDTO struct {
 	ColonyLocationID uint32 `json:"colonyLocationID"`
 }
 
+type LocationUpgradeMessageDTO struct {
+	ColonyLocationID uint32 `json:"colonyLocationID"`
+	Level            uint32 `json:"level"`
+}
+
 type DifficultySelectForMinigameMessageDTO struct {
 	ColonyLocationID uint32 `json:"colonyLocationID"`
 	MinigameID       uint32 `json:"minigameID"`
@@ -62,7 +67,7 @@ type PlayerLoadFailureMessageDTO struct {
 }
 
 type GenericUntimelyAbortMessageDTO struct {
-	PlayerID uint32 `json:"playerID"`
+	PlayerID uint32 `json:"id"`
 	Reason   string `json:"reason"`
 }
 

@@ -1,5 +1,7 @@
 package internal
 
+import "sync/atomic"
+
 // Must be blocking.
 // Here is to be executed any final logic or broadcasts before the game loop actually starts.
 // Any error results in GenericUntimelyAbortEvent with that error as reason and ends the game early and resets activity tracking.
@@ -24,4 +26,5 @@ type GenericMinigameControls struct {
 	ExecFallingEdge MinigameFallingEdgeFunction
 	// Any error is returned as a debug event to the client
 	OnMessage func(msg *MessageEntry) error
+	State     *atomic.Uint32
 }

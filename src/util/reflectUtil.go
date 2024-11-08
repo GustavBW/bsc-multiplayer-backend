@@ -18,5 +18,5 @@ func FindFieldByJSONTagValue(v reflect.Value, jsonName string) (reflect.Value, b
 			return v.Field(i), true
 		}
 	}
-	return reflect.Value{}, false
+	return v, false
 }

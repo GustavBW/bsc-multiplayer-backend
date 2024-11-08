@@ -87,9 +87,11 @@ func NewLobby(id LobbyID, ownerID ClientID, colonyID uint32, encoding meta.Messa
 type JoinError = int
 
 const (
-	JoinErrorNotFound       JoinError = 0
-	JoinErrorClosing        JoinError = 1
-	JoinErrorAlreadyInLobby JoinError = 2
+	JoinErrorNotFound             JoinError = 0
+	JoinErrorClosing              JoinError = 1
+	JoinErrorAlreadyInLobby       JoinError = 2
+	JoinErrorUnknown              JoinError = 3
+	JoinErrorSerializationFailure JoinError = 4
 )
 
 type LobbyJoinError struct {

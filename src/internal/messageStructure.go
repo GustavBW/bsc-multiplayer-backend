@@ -85,6 +85,29 @@ func ComputeStructure(messageName string, shortDescription ReferenceStructure) (
 	return minimumTotalSize, computedStructure
 }
 
+func VerifyStructureTCompliance[T any](structure ComputedStructure) error {
+	for _, element := range structure {
+		if err := isValidKind(element.Kind); err != nil {
+			return err
+		}
+	}
+	var tNull T
+	tVal := reflect.ValueOf(tNull)
+	for _, element := range structure {
+		//Check if the field with a json tag by that name exists
+		field, present := util.FindFieldByJSONTagValue(tVal, element.FieldName)
+		if !present {
+			return fmt.Errorf("field %s not found in struct", element.FieldName)
+		}
+		//Check if the field has the same kind as the element
+		if field.Kind() != element.Kind {
+			return fmt.Errorf("field %s has kind %s, expected %s", element.FieldName, field.Kind(), element.Kind)
+		}
+	}
+
+	return nil
+}
+
 // In terms of expected message contents
 func isValidKind(kind reflect.Kind) error {
 	switch kind {
