@@ -55,10 +55,15 @@ func (eSpec *EventSpecification[T]) CopyIDBytes() []byte {
 // The Handler defines what the server should do when it recieves a message of this type.
 // Which, for all server-only events, is nothing.
 func NewSpecification[T any](id MessageID, name string, comment string, whoMaySend map[OriginType]bool,
-	structure ReferenceStructure, handler AbstractEventHandler[T]) *EventSpecification[T] {
+	handler AbstractEventHandler[T]) *EventSpecification[T] {
 
 	var idAsBytes = util.BytesOfUint32(id)
-	minContentSize, computed := ComputeStructure(name, structure)
+	derived, computeErr := DeriveReferenceDescriptionFromT[T]()
+	if computeErr != nil {
+		var tNull T
+		panic(fmt.Sprintf("Specification error: Error deriving reference description for %s: %s", reflect.TypeOf(tNull).String(), computeErr.Error()))
+	}
+	minContentSize, computed := ComputeStructure(name, derived)
 	err := VerifyStructureTCompliance[T](computed)
 	if err != nil {
 		panic(fmt.Sprintf("Specification error: Error verifying T <=> Structure compliance: %v", err))
@@ -121,13 +126,10 @@ var OWNER_AND_GUESTS = map[OriginType]bool{
 	ORIGIN_TYPE_SERVER: false,
 }
 
-var DEBUG_EVENT = NewSpecification[DebugEventMessageDTO](1, "DebugInfo", "For debug messages", SERVER_ONLY, []ShortElementDescriptor{
-	NewElementDescriptor("HTTP Code (if applicable)", "code", reflect.Uint32),
-	NewElementDescriptor("Debug message", "message", reflect.String),
-}, Handlers_OnDebugMessageRecieved)
+var DEBUG_EVENT = NewSpecification[DebugEventMessageDTO](1, "DebugInfo", "For debug messages", SERVER_ONLY, Handlers_OnDebugMessageRecieved)
 
 var SERVER_CLOSING_EVENT = NewSpecification[EmptyDTO](2, "ServerClosing", "Sent when the server shuts down, followed by LOBBY CLOSING",
-	SERVER_ONLY, REFERENCE_STRUCTURE_EMPTY, Handlers_IntentionalIgnoreHandler)
+	SERVER_ONLY, Handlers_IntentionalIgnoreHandler)
 
 // Full range: 0 to 4,294,967,295
 //
@@ -167,116 +169,72 @@ func NewSpecMap(events ...interface{}) map[MessageID]*EventSpecification[any] {
 	return result
 }
 
-var PLAYER_JOINED_EVENT = NewSpecification[PlayerJoinedMessageDTO](11, "PlayerJoined", "Sent when a player joins the lobby", SERVER_ONLY, []ShortElementDescriptor{
-	NewElementDescriptor("Player ID", "id", reflect.Uint32),
-	NewElementDescriptor("Player IGN", "ign", reflect.String),
-}, Handlers_IntentionalIgnoreHandler) // Handled internally
+var PLAYER_JOINED_EVENT = NewSpecification[PlayerJoinedMessageDTO](11, "PlayerJoined", "Sent when a player joins the lobby",
+	SERVER_ONLY, Handlers_IntentionalIgnoreHandler) // Handled internally
 
-var PLAYER_LEFT_EVENT = NewSpecification[PlayerLeftMessageDTO](12, "PlayerLeft", "Sent when a player leaves the lobby", SERVER_ONLY, []ShortElementDescriptor{
-	NewElementDescriptor("Player ID", "id", reflect.Uint32),
-	NewElementDescriptor("Player IGN", "ign", reflect.String),
-}, Handlers_IntentionalIgnoreHandler) // Handled internally
+var PLAYER_LEFT_EVENT = NewSpecification[PlayerLeftMessageDTO](12, "PlayerLeft", "Sent when a player leaves the lobby",
+	SERVER_ONLY, Handlers_IntentionalIgnoreHandler) // Handled internally
 
 var LOBBY_CLOSING_EVENT = NewSpecification[EmptyDTO](13, "LobbyClosing", "Sent when the lobby closes", SERVER_ONLY,
-	REFERENCE_STRUCTURE_EMPTY, Handlers_IntentionalIgnoreHandler)
+	Handlers_IntentionalIgnoreHandler)
 
 // 10-999: Lobby Management
 var LOBBY_MANAGEMENT_EVENTS = NewSpecMap(PLAYER_JOINED_EVENT, PLAYER_LEFT_EVENT, LOBBY_CLOSING_EVENT)
 
-var ENTER_LOCATION_EVENT = NewSpecification[EnterLocationMessageDTO](1001, "EnterLocation", "Send when the owner enters a location", OWNER_ONLY, []ShortElementDescriptor{
-	NewElementDescriptor("Colony Location ID", "id", reflect.Uint32),
-}, Handlers_NoCheckReplicate)
+var ENTER_LOCATION_EVENT = NewSpecification[EnterLocationMessageDTO](1001, "EnterLocation", "Send when the owner enters a location",
+	OWNER_ONLY, Handlers_NoCheckReplicate)
 
-var PLAYER_MOVE_EVENT = NewSpecification[PlayerMoveMessageDTO](1002, "PlayerMove", "Sent when any player moves to some location", OWNER_AND_GUESTS, []ShortElementDescriptor{
-	NewElementDescriptor("Player ID", "playerID", reflect.Uint32),
-	NewElementDescriptor("Colony Location ID", "colonyLocationID", reflect.Uint32), //Referenced through array index in client.go
-}, Handlers_NoCheckReplicate)
+var PLAYER_MOVE_EVENT = NewSpecification[PlayerMoveMessageDTO](1002, "PlayerMove", "Sent when any player moves to some location",
+	OWNER_AND_GUESTS, Handlers_NoCheckReplicate)
 
 var LOCATION_UPGRADE_EVENT = NewSpecification[LocationUpgradeMessageDTO](1003, "LocationUpgrade", "Sent from the server when a minigame is won which upgrades a location",
-	SERVER_ONLY, []ShortElementDescriptor{
-		NewElementDescriptor("Colony Location ID", "colonyLocationID", reflect.Uint32),
-		NewElementDescriptor("New Level", "level", reflect.Uint32),
-	}, Handlers_IntentionalIgnoreHandler)
+	SERVER_ONLY, Handlers_IntentionalIgnoreHandler)
 
 // 1000-1999: Colony Events
 var COLONY_EVENTS = NewSpecMap(ENTER_LOCATION_EVENT, PLAYER_MOVE_EVENT)
 
 var DIFFICULTY_SELECT_FOR_MINIGAME_EVENT = NewSpecification[DifficultySelectForMinigameMessageDTO](2000, "DifficultySelectForMinigame", "Sent when the owner selects a difficulty (NOT CONFIRM)",
-	OWNER_ONLY, []ShortElementDescriptor{
-		NewElementDescriptor("Colony Location id", "colonyLocationID", reflect.Uint32),
-		NewElementDescriptor("Minigame ID", "minigameID", reflect.Uint32),
-		NewElementDescriptor("Difficulty ID", "difficultyID", reflect.Uint32),
-		NewElementDescriptor("Difficulty Name", "difficultyName", reflect.String),
-	}, Handlers_NoCheckReplicate)
+	OWNER_ONLY, Handlers_NoCheckReplicate)
 
 var DIFFICULTY_CONFIRMED_FOR_MINIGAME_EVENT = NewSpecification[DifficultyConfirmedForMinigameMessageDTO](2001, "DifficultyConfirmedForMinigame", "Sent when the owner confirms a selected difficulty",
-	OWNER_ONLY, []ShortElementDescriptor{
-		NewElementDescriptor("Colony Location id", "colonyLocationID", reflect.Uint32),
-		NewElementDescriptor("Minigame ID", "minigameID", reflect.Uint32),
-		NewElementDescriptor("Difficulty ID", "difficultyID", reflect.Uint32),
-		NewElementDescriptor("Difficulty Name", "difficultyName", reflect.String),
-	}, Handlers_NoCheckReplicate)
+	OWNER_ONLY, Handlers_NoCheckReplicate)
 
 var PLAYERS_DECLARE_INTENT_EVENT = NewSpecification[EmptyDTO](2002, "PlayersDeclareIntentForMinigame", "sent after the server has"+
 	"recieved PLAYER JOIN ACTIVITY or PLAYER ABORTING MINIGAME from all players in the lobby",
-	SERVER_ONLY, REFERENCE_STRUCTURE_EMPTY, Handlers_IntentionalIgnoreHandler)
+	SERVER_ONLY, Handlers_IntentionalIgnoreHandler)
 
 var PLAYER_READY_EVENT = NewSpecification[PlayerReadyMessageDTO](2003, "PlayerReadyForMinigame", "sent when a player has loaded into a specific minigame",
-	OWNER_AND_GUESTS, []ShortElementDescriptor{
-		NewElementDescriptor("Player ID", "id", reflect.Uint32),
-		NewElementDescriptor("Player IGN", "ign", reflect.String),
-	}, Handlers_NoCheckReplicate)
+	OWNER_AND_GUESTS, Handlers_NoCheckReplicate)
 
 var PLAYER_ABORTING_MINIGAME_EVENT = NewSpecification[PlayerAbortingMinigameMessageDTO](2004, "PlayerAbortingMinigame", "sent when a player opts out of the minigame by leaving the hand position check",
-	OWNER_AND_GUESTS, []ShortElementDescriptor{
-		NewElementDescriptor("Player ID", "id", reflect.Uint32),
-		NewElementDescriptor("Player IGN", "ign", reflect.String),
-	}, Handlers_NoCheckReplicate)
+	OWNER_AND_GUESTS, Handlers_NoCheckReplicate)
 
 var MINIGAME_BEGINS_EVENT = NewSpecification[EmptyDTO](2005, "MinigameBegins", "Sent when the server has recieved PLAYER READY from all participants",
-	SERVER_ONLY, REFERENCE_STRUCTURE_EMPTY, Handlers_IntentionalIgnoreHandler)
+	SERVER_ONLY, Handlers_IntentionalIgnoreHandler)
 
 var PLAYER_JOIN_ACTIVITY_EVENT = NewSpecification[PlayerJoinActivityMessageDTO](2006, "PlayerJoinActivity", "sent when a player has passed the hand position check",
-	OWNER_AND_GUESTS, []ShortElementDescriptor{
-		NewElementDescriptor("Player ID", "id", reflect.Uint32),
-		NewElementDescriptor("Player IGN", "ign", reflect.String),
-	}, Handlers_NoCheckReplicate)
+	OWNER_AND_GUESTS, Handlers_NoCheckReplicate)
 
 var LOAD_MINIGAME_EVENT = NewSpecification[EmptyDTO](2010, "LoadMinigame", "Sent when the server has recieved Player Ready from all participants",
-	SERVER_ONLY, REFERENCE_STRUCTURE_EMPTY, Handlers_IntentionalIgnoreHandler)
+	SERVER_ONLY, Handlers_IntentionalIgnoreHandler)
 
 var PLAYER_LOAD_FAILURE_EVENT = NewSpecification[PlayerLoadFailureMessageDTO](2007, "PlayerLoadFailure", "Sent when a player fails to load into the minigame",
-	OWNER_AND_GUESTS, []ShortElementDescriptor{
-		NewElementDescriptor("Reason", "reason", reflect.String),
-	}, Handlers_IntentionalIgnoreHandler)
+	OWNER_AND_GUESTS, Handlers_IntentionalIgnoreHandler)
 
 var GENERIC_MINIGAME_UNTIMELY_ABORT = NewSpecification[GenericUntimelyAbortMessageDTO](2008, "GenericMinigameUntimelyAbort", "Sent when the server has recieved Player Load Failure from any participant",
-	SERVER_ONLY, []ShortElementDescriptor{
-		NewElementDescriptor("ID of source", "id", reflect.Uint32),
-		NewElementDescriptor("Reason", "reason", reflect.String),
-	}, Handlers_IntentionalIgnoreHandler)
+	SERVER_ONLY, Handlers_IntentionalIgnoreHandler)
 
 var PLAYER_LOAD_COMPLETE_EVENT = NewSpecification[EmptyDTO](2009, "PlayerLoadComplete", "Sent when a given player has finished loading into the minigame",
-	OWNER_AND_GUESTS, REFERENCE_STRUCTURE_EMPTY, Handlers_IntentionalIgnoreHandler)
+	OWNER_AND_GUESTS, Handlers_IntentionalIgnoreHandler)
 
 var GENERIC_MINIGAME_SEQUENCE_RESET = NewSpecification[EmptyDTO](2011, "GenericMinigameSequenceReset", "Sent of any non-fatal reason as result of some other action. Fx. if the owner declines participation",
-	SERVER_ONLY, REFERENCE_STRUCTURE_EMPTY, Handlers_IntentionalIgnoreHandler)
+	SERVER_ONLY, Handlers_IntentionalIgnoreHandler)
 
 var MINIGAME_WON_EVENT = NewSpecification[MinigameWonMessageDTO](2012, "MinigameWon", "Sent when the server has determined that the currently ongoing minigame is won",
-	SERVER_ONLY, []ShortElementDescriptor{
-		NewElementDescriptor("Colony Location id", "colonyLocationID", reflect.Uint32),
-		NewElementDescriptor("Minigame ID", "minigameID", reflect.Uint32),
-		NewElementDescriptor("Difficulty ID", "difficultyID", reflect.Uint32),
-		NewElementDescriptor("Difficulty Name", "difficultyName", reflect.String),
-	}, Handlers_IntentionalIgnoreHandler)
+	SERVER_ONLY, Handlers_IntentionalIgnoreHandler)
 
 var MINIGAME_LOST_EVENT = NewSpecification[MinigameLostMessageDTO](2013, "MinigameLost", "Sent when the server has determined that the currently ongoing minigame is lost",
-	SERVER_ONLY, []ShortElementDescriptor{
-		NewElementDescriptor("Colony Location id", "colonyLocationID", reflect.Uint32),
-		NewElementDescriptor("Minigame ID", "minigameID", reflect.Uint32),
-		NewElementDescriptor("Difficulty ID", "difficultyID", reflect.Uint32),
-		NewElementDescriptor("Difficulty Name", "difficultyName", reflect.String),
-	}, Handlers_IntentionalIgnoreHandler)
+	SERVER_ONLY, Handlers_IntentionalIgnoreHandler)
 
 var MINIGAME_INITIATION_EVENTS = NewSpecMap(DIFFICULTY_SELECT_FOR_MINIGAME_EVENT, DIFFICULTY_CONFIRMED_FOR_MINIGAME_EVENT, PLAYERS_DECLARE_INTENT_EVENT,
 	PLAYER_READY_EVENT, PLAYER_ABORTING_MINIGAME_EVENT, MINIGAME_BEGINS_EVENT, PLAYER_JOIN_ACTIVITY_EVENT, PLAYER_LOAD_FAILURE_EVENT,
