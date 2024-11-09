@@ -2,13 +2,45 @@ package internal
 
 import (
 	"fmt"
+	"sync/atomic"
 )
 
+type MinigameState uint32
+
+func (m MinigameState) String() string {
+	switch m {
+	case MINIGAME_STATE_VICTORY:
+		return "Victory"
+	case MINIGAME_STATE_DEFEAT:
+		return "Defeat"
+	case MINIGAME_STATE_ABORT:
+		return "Abort"
+	case MINIGAME_STATE_UNDETERMINED:
+		return "Undetermined"
+	default:
+		return "Unknown"
+	}
+}
+func MinigameStateFrom(i uint32) MinigameState {
+	switch i {
+	case 1:
+		return MINIGAME_STATE_VICTORY
+	case 2:
+		return MINIGAME_STATE_DEFEAT
+	case 3:
+		return MINIGAME_STATE_ABORT
+	case 4:
+		return MINIGAME_STATE_UNDETERMINED
+	default:
+		return MINIGAME_STATE_UNDETERMINED
+	}
+}
+
 const (
-	MINIGAME_STATE_VICTORY = iota
-	MINIGAME_STATE_DEFEAT
-	MINIGAME_STATE_ABORT
-	MINIGAME_STATE_UNDETERMINED
+	MINIGAME_STATE_VICTORY      MinigameState = 1
+	MINIGAME_STATE_DEFEAT       MinigameState = 2
+	MINIGAME_STATE_ABORT        MinigameState = 3
+	MINIGAME_STATE_UNDETERMINED MinigameState = 4
 )
 
 func LoadMinigameControls(diffDTO *DifficultyConfirmedForMinigameMessageDTO, lobby *Lobby, onDismount func()) (*GenericMinigameControls, error) {
@@ -24,7 +56,10 @@ func LoadMinigameControls(diffDTO *DifficultyConfirmedForMinigameMessageDTO, lob
 	}
 }
 
-func OnUntimelyMinigameAbort(reason string, sourceID uint32, lobby *Lobby) error {
+func OnUntimelyMinigameAbort(reason string, sourceID uint32, lobby *Lobby, state *atomic.Uint32) error {
+	if state != nil {
+		state.Store(uint32(MINIGAME_STATE_ABORT))
+	}
 	data := GenericUntimelyAbortMessageDTO{
 		Reason:   reason,
 		SourceID: sourceID,

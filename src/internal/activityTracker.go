@@ -94,7 +94,7 @@ func (ta *ActivityTracker) SetDiffConfirmed(dto *DifficultyConfirmedForMinigameM
 func (ta *ActivityTracker) LockIn(numPlayersRightNow uint32) bool {
 	var isNil = true
 	ta.diffConfirmed.Do(func(v **DifficultyConfirmedForMinigameMessageDTO) {
-		isNil = (v == nil || (v != nil && *v == nil))
+		isNil = (v == nil || *v == nil)
 	})
 	if isNil {
 		return false

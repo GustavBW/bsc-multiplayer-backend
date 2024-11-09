@@ -191,8 +191,6 @@ func (lobby *Lobby) handleConnection(client *Client) {
 			continue
 		}
 
-		log.Printf("[lobby] Received message from clientID: %d, messageID: %d", clientID, spec.ID)
-
 		// Further processing based on messageID
 		if processingError := lobby.processClientMessage(client, spec, remainder); processingError != nil {
 			log.Printf("[lobby] Error processing message from clientID %d: %v", clientID, processingError)
@@ -277,7 +275,7 @@ func (l *Lobby) runPostProcess() {
 					SendDebugInfoToClient(messageInfo.Client, 400, "Error deserializing message: "+err.Error())
 					return
 				}
-				serErr := OnUntimelyMinigameAbort(deserialized.Reason, messageInfo.Client.ID, l)
+				serErr := OnUntimelyMinigameAbort(deserialized.Reason, messageInfo.Client.ID, l, nil)
 				if serErr != nil {
 					log.Printf("[lobby] Error sending untimely abort message: %v", err)
 				}
@@ -299,7 +297,7 @@ func (l *Lobby) runPostProcess() {
 				})
 				controls, err := LoadMinigameControls(diff, l, l.dismountCurrentActivity)
 				if err != nil {
-					err := OnUntimelyMinigameAbort(err.Error(), SERVER_ID, l)
+					err := OnUntimelyMinigameAbort(err.Error(), SERVER_ID, l, nil)
 					if err != nil {
 						log.Printf("[lobby] Error sending untimely abort message: %v", err)
 					}
@@ -308,7 +306,7 @@ func (l *Lobby) runPostProcess() {
 				}
 
 				if err := controls.ExecRisingEdge(); err != nil {
-					err := OnUntimelyMinigameAbort(err.Error(), SERVER_ID, l)
+					err := OnUntimelyMinigameAbort(err.Error(), SERVER_ID, l, nil)
 					if err != nil {
 						log.Printf("[lobby] Error sending untimely abort message: %v", err)
 					}

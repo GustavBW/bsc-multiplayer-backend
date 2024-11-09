@@ -67,6 +67,7 @@ type AsteroidsMinigameControls struct {
 	// Initialized on controls creation
 	// Must only be modified by update loop routine
 	asteroidSpawnCount uint32
+	state              *atomic.Uint32
 }
 
 func (amc *AsteroidsMinigameControls) beginUpdateLoop() {
@@ -92,7 +93,6 @@ func (amc *AsteroidsMinigameControls) update() {
 
 		time.Sleep(100 * time.Millisecond)
 	}
-	amc.onFallingEdge()
 	amc.onDismount()
 }
 
@@ -109,7 +109,7 @@ func (amc *AsteroidsMinigameControls) evaluateAsteroids() {
 			serialized, err := Serialize(ASTEROID_IMPACT_EVENT, data)
 			if err != nil {
 				log.Printf("Error serializing asteroid impact event: %s\n", err.Error())
-				OnUntimelyMinigameAbort("Error serializing asteroid impact event", SERVER_ID, amc.lobby)
+				OnUntimelyMinigameAbort("Error serializing asteroid impact event", SERVER_ID, amc.lobby, amc.state)
 				return false
 			}
 			amc.lobby.BroadcastMessage(SERVER_ID, serialized)
@@ -123,6 +123,7 @@ func (amc *AsteroidsMinigameControls) checkGameEndConditions() bool {
 	// Check if colony is dead
 	if amc.colonyHPLeft <= 0 {
 		//Send game over event
+		amc.state.Store(uint32(MINIGAME_STATE_DEFEAT))
 		data := MinigameLostMessageDTO{
 			ColonyLocationID: amc.difficultyInfo.ColonyLocationID,
 			MinigameID:       1,
@@ -132,7 +133,7 @@ func (amc *AsteroidsMinigameControls) checkGameEndConditions() bool {
 		serialized, err := Serialize(MINIGAME_LOST_EVENT, data)
 		if err != nil {
 			log.Printf("Error serializing minigame lost event: %s\n", err.Error())
-			return OnUntimelyMinigameAbort("Error serializing minigame lost event", SERVER_ID, amc.lobby) != nil
+			return OnUntimelyMinigameAbort("Error serializing minigame lost event", SERVER_ID, amc.lobby, amc.state) != nil
 		}
 		amc.lobby.BroadcastMessage(SERVER_ID, serialized)
 		return false
@@ -140,6 +141,7 @@ func (amc *AsteroidsMinigameControls) checkGameEndConditions() bool {
 	// Check if the players have survived the survival time
 	if time.Since(amc.timeStart).Seconds() >= float64(amc.settings.SurvivalTimeS) {
 		//Send game victory event
+		amc.state.Store(uint32(MINIGAME_STATE_VICTORY))
 		data := MinigameWonMessageDTO{
 			ColonyLocationID: amc.difficultyInfo.ColonyLocationID,
 			MinigameID:       1,
@@ -149,7 +151,7 @@ func (amc *AsteroidsMinigameControls) checkGameEndConditions() bool {
 		serialized, err := Serialize(MINIGAME_WON_EVENT, data)
 		if err != nil {
 			log.Printf("Error serializing minigame won event: %s\n", err.Error())
-			return OnUntimelyMinigameAbort("Error serializing minigame won event", SERVER_ID, amc.lobby) != nil
+			return OnUntimelyMinigameAbort("Error serializing minigame won event", SERVER_ID, amc.lobby, amc.state) != nil
 		}
 		amc.lobby.BroadcastMessage(SERVER_ID, serialized)
 		return false
@@ -166,6 +168,8 @@ var upTo4PlayersPositionsXY = [][]float32{
 
 func (amc *AsteroidsMinigameControls) onRisingEdge() error {
 	log.Println("Asteroids on rising edge for lobby id: ", amc.lobby.ID)
+	amc.state.Store(uint32(MINIGAME_STATE_UNDETERMINED))
+
 	var playerCount uint32
 	var asSlice []*Client
 	var penaltyCountMap map[ClientID]uint32 = make(map[ClientID]uint32)
@@ -244,7 +248,7 @@ func (amc *AsteroidsMinigameControls) spawnAsteroid() {
 	serialized, err := Serialize(ASTEROID_SPAWN_EVENT, asteroid.AsteroidSpawnMessageDTO)
 	if err != nil {
 		log.Printf("Error serializing asteroid spawn event: %s\n", err.Error())
-		OnUntimelyMinigameAbort("Error serializing asteroid spawn event", SERVER_ID, amc.lobby)
+		OnUntimelyMinigameAbort("Error serializing asteroid spawn event", SERVER_ID, amc.lobby, amc.state)
 		return
 	}
 
@@ -281,7 +285,7 @@ func (amc *AsteroidsMinigameControls) onPlayerShot(msg *PlayerShootAtCodeMessage
 			serialized, err := Serialize(PLAYER_PENALTY_EVENT, data)
 			if err != nil {
 				log.Printf("Error serializing player penalty event: %s\n", err.Error())
-				OnUntimelyMinigameAbort("Error serializing player penalty event", SERVER_ID, amc.lobby)
+				OnUntimelyMinigameAbort("Error serializing player penalty event", SERVER_ID, amc.lobby, amc.state)
 				return
 			}
 			amc.lobby.BroadcastMessage(SERVER_ID, serialized)
@@ -307,6 +311,23 @@ func (amc *AsteroidsMinigameControls) onPlayerShot(msg *PlayerShootAtCodeMessage
 // Intentionally does nothing right now
 func (amc *AsteroidsMinigameControls) onFallingEdge() error {
 	log.Println("Asteroids on falling edge for lobby id: ", amc.lobby.ID)
+	if (*amc.state).Load() == uint32(MINIGAME_STATE_VICTORY) {
+		//Ask main backend to upgrade location
+		resp, err := integrations.GetMainBackendIntegration().UpgradeLocation(amc.lobby.ColonyID, amc.difficultyInfo.ColonyLocationID)
+		if err != nil {
+			return fmt.Errorf("error upgrading location: %s", err.Error())
+		}
+		//Send location upgrade event
+		data := LocationUpgradeMessageDTO{
+			ColonyLocationID: amc.difficultyInfo.ColonyLocationID,
+			Level:            resp.Level,
+		}
+		serialized, err := Serialize(LOCATION_UPGRADE_EVENT, data)
+		if err != nil {
+			return fmt.Errorf("error serializing location upgrade event: %s", err.Error())
+		}
+		amc.lobby.BroadcastMessage(SERVER_ID, serialized)
+	}
 	return nil
 }
 
@@ -316,6 +337,7 @@ func (amc *AsteroidsMinigameControls) onMessage(msg *MessageEntry) error {
 	case PLAYER_SHOOT_EVENT.ID:
 		deserialized, err := Deserialize(PLAYER_SHOOT_EVENT, msg.Remainder, true)
 		if err != nil {
+			SendDebugInfoToClient(msg.Client, 400, "error deserializing player shoot event: "+err.Error())
 			return fmt.Errorf("error deserializing player shoot event: %s", err.Error())
 		}
 		amc.onPlayerShot(deserialized)
@@ -351,6 +373,9 @@ func GetAsteroidMinigameControls(diff *DifficultyConfirmedForMinigameMessageDTO,
 		return nil, fmt.Errorf("error creating char code pool: %s", err.Error())
 	}
 
+	state := atomic.Uint32{}
+	state.Store(uint32(MINIGAME_STATE_UNDETERMINED))
+
 	minigame := &AsteroidsMinigameControls{
 		settings:           &baseSettings,
 		lobby:              lobby,
@@ -361,10 +386,8 @@ func GetAsteroidMinigameControls(diff *DifficultyConfirmedForMinigameMessageDTO,
 		asteroids:          util.ConcurrentTypedMap[uint32, *Asteroid]{},
 		asteroidSpawnCount: 0,
 		difficultyInfo:     diff,
+		state:              &state,
 	}
-
-	state := atomic.Uint32{}
-	state.Store(MINIGAME_STATE_UNDETERMINED)
 
 	return &GenericMinigameControls{
 		ExecRisingEdge:  minigame.onRisingEdge,

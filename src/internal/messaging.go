@@ -119,6 +119,5 @@ func broadcast(lobby *Lobby, senderID ClientID, message []byte, messageType int)
 		return true
 	})
 
-	log.Println("Broadcasting message to lobby, senderID: ", senderID, " replication count: ", replicationCount)
 	return unreachableClients
 }
