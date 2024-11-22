@@ -8,7 +8,7 @@ import (
 )
 
 func TestNewCharPool(t *testing.T) {
-	englishPool := NewCharPool(SymbolSets.English)
+	englishPool := NewCharPool(append(SymbolSets.Danish.Lowercase, SymbolSets.Danish.Uppercase...))
 	if englishPool == nil {
 		t.Fatal("NewCharPool returned nil for English SymbolSet")
 	}
@@ -16,7 +16,7 @@ func TestNewCharPool(t *testing.T) {
 		t.Errorf("Expected 52 symbols in English pool, got %d", len(englishPool.symbols))
 	}
 
-	danishPool := NewCharPool(SymbolSets.Danish)
+	danishPool := NewCharPool(append(SymbolSets.Danish.Lowercase, SymbolSets.Danish.Uppercase...))
 	if danishPool == nil {
 		t.Fatal("NewCharPool returned nil for Danish SymbolSet")
 	}
@@ -26,7 +26,7 @@ func TestNewCharPool(t *testing.T) {
 }
 
 func TestGetNextChar(t *testing.T) {
-	pool := NewCharPool(SymbolSets.English)
+	pool := NewCharPool(append(SymbolSets.English.Lowercase, SymbolSets.English.Uppercase...))
 	totalSymbols := len(SymbolSets.English.Lowercase) + len(SymbolSets.English.Uppercase)
 	usedChars := make(map[rune]bool)
 
@@ -47,7 +47,7 @@ func TestGetNextChar(t *testing.T) {
 }
 
 func TestCharPoolThreadSafety(t *testing.T) {
-	pool := NewCharPool(SymbolSets.English)
+	pool := NewCharPool(append(SymbolSets.English.Lowercase, SymbolSets.English.Uppercase...))
 	const numGoroutines = 100
 	const charsPerGoroutine = 1000
 
@@ -194,7 +194,7 @@ func TestNewCharCodePool(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pool, err := NewCharCodePool(tt.initialSize, tt.charCodeLength, tt.symbols)
+			pool, err := NewCharCodePool(tt.initialSize, tt.charCodeLength, append(tt.symbols.Lowercase, tt.symbols.Uppercase...))
 			if (err != nil) != tt.wantErr {
 				t.Errorf("NewCharCodePool() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -217,7 +217,7 @@ func TestNewCharCodePool(t *testing.T) {
 func TestCharCodePoolGetNext(t *testing.T) {
 	initialSize := uint32(100)
 	codeLength := uint32(4)
-	pool, err := NewCharCodePool(initialSize, codeLength, SymbolSets.English)
+	pool, err := NewCharCodePool(initialSize, codeLength, append(SymbolSets.English.Lowercase, SymbolSets.English.Uppercase...))
 	if err != nil {
 		t.Fatalf("Failed to create CharCodePool: %v", err)
 	}
@@ -250,7 +250,7 @@ func TestCharCodePoolGetNext(t *testing.T) {
 func TestCharCodePoolReintroduce(t *testing.T) {
 	initialSize := uint32(100)
 	codeLength := uint32(4)
-	pool, _ := NewCharCodePool(initialSize, codeLength, SymbolSets.English)
+	pool, _ := NewCharCodePool(initialSize, codeLength, append(SymbolSets.English.Lowercase, SymbolSets.English.Uppercase...))
 
 	// Get a code and reintroduce it
 	entry := pool.GetNext()
@@ -271,7 +271,7 @@ func TestCharCodePoolReintroduce(t *testing.T) {
 func TestCharCodePoolPermutationExhaustion(t *testing.T) {
 	initialSize := uint32(100)
 	codeLength := uint32(2)
-	pool, _ := NewCharCodePool(initialSize, codeLength, SymbolSets.English)
+	pool, _ := NewCharCodePool(initialSize, codeLength, append(SymbolSets.English.Lowercase, SymbolSets.English.Uppercase...))
 	uniqueSymbols := len(SymbolSets.English.Lowercase) + len(SymbolSets.English.Uppercase)
 	possiblePermutations := math.Pow(float64(uniqueSymbols), float64(codeLength))
 
@@ -302,7 +302,7 @@ func TestCharCodePoolPermutationExhaustion(t *testing.T) {
 func TestCharCodePoolConcurrency(t *testing.T) {
 	initialSize := uint32(1000)
 	codeLength := uint32(3)
-	pool, _ := NewCharCodePool(initialSize, codeLength, SymbolSets.English)
+	pool, _ := NewCharCodePool(initialSize, codeLength, append(SymbolSets.English.Lowercase, SymbolSets.English.Uppercase...))
 	uniqueSymbols := len(SymbolSets.English.Lowercase) + len(SymbolSets.English.Uppercase)
 	possiblePermutations := math.Pow(float64(uniqueSymbols), float64(codeLength))
 	flooredSQRT := int(math.Floor(math.Sqrt(possiblePermutations)))
@@ -335,7 +335,7 @@ func TestCharCodePoolConcurrency(t *testing.T) {
 }
 
 func TestPoolEntryFree(t *testing.T) {
-	pool, _ := NewCharCodePool(100, 4, SymbolSets.English)
+	pool, _ := NewCharCodePool(100, 4, append(SymbolSets.English.Lowercase, SymbolSets.English.Uppercase...))
 	entry := pool.GetNext()
 
 	initialPoolSize := len(pool.codePool)

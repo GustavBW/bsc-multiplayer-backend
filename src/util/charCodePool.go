@@ -27,14 +27,13 @@ var SymbolSets = symbols{
 	},
 }
 
-func NewCharCodePool(initialSize uint32, charCodeLength uint32, symbols SymbolSet) (*CharCodePool, error) {
-	var numUniqueSymbols = len(symbols.Lowercase) + len(symbols.Uppercase)
-	var possiblePermutations = math.Pow(float64(numUniqueSymbols), float64(charCodeLength))
+func NewCharCodePool(initialSize uint32, charCodeLength uint32, runes []rune) (*CharCodePool, error) {
+	var possiblePermutations = math.Pow(float64(len(runes)), float64(charCodeLength))
 	if possiblePermutations < float64(initialSize) {
 		return nil, fmt.Errorf("initialSize %d is larger than the number of possible permutations %f", initialSize, possiblePermutations)
 	}
 
-	charPool := NewCharPool(symbols)
+	charPool := NewCharPool(runes)
 	codePool := &CharCodePool{
 		codeLength: charCodeLength,
 		charPool:   charPool,
@@ -102,13 +101,10 @@ func (ccp *CharCodePool) Reintroduce(pe *PoolEntry[[]rune]) {
 	ccp.codePool = append(ccp.codePool, *pe)
 }
 
-func NewCharPool(symbolsSet SymbolSet) *CharPool {
+func NewCharPool(runes []rune) *CharPool {
 	//Allocate shared symbols array
-	var symbols = make([]rune, len(symbolsSet.Lowercase)+len(symbolsSet.Uppercase))
-
-	//Copy symbols into shared array
-	copy(symbols, symbolsSet.Lowercase)
-	copy(symbols[len(symbolsSet.Lowercase):], symbolsSet.Uppercase)
+	var symbols = make([]rune, len(runes))
+	copy(symbols, runes)
 
 	//Shuffle symbols
 	rand.Shuffle(len(symbols), func(i, j int) {
@@ -136,10 +132,10 @@ func (cp *CharPool) GetNextChar() rune {
 	cp.Lock()
 	defer cp.Unlock()
 	if cp.indexPointer >= uint32(len(cp.symbols)) {
-		cp.indexPointer = 0
 		rand.Shuffle(len(cp.symbols), func(i, j int) {
 			cp.symbols[i], cp.symbols[j] = cp.symbols[j], cp.symbols[i]
 		})
+		cp.indexPointer = 0
 	}
 	nextChar := cp.symbols[cp.indexPointer]
 	cp.indexPointer++

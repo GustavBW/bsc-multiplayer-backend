@@ -368,7 +368,7 @@ func GetAsteroidMinigameControls(diff *DifficultyConfirmedForMinigameMessageDTO,
 	}
 
 	// Todo update char set based on language from diff (diff also needs new field languageReferenceID)
-	generator, err := util.NewCharCodePool(100, baseSettings.CharCodeLength, util.SymbolSets.English)
+	generator, err := util.NewCharCodePool(100, baseSettings.CharCodeLength, util.SymbolSets.English.Lowercase)
 	if err != nil {
 		return nil, fmt.Errorf("error creating char code pool: %s", err.Error())
 	}
