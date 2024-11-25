@@ -224,8 +224,7 @@ func (amc *AsteroidsMinigameControls) onRisingEdge() error {
 }
 
 func (amc *AsteroidsMinigameControls) spawnAsteroid() {
-	startX := rand.Float32()*0.9 + 0.1
-	startY := rand.Float32()*0.9 + 0.1
+	startY := rand.Float32()*0.5 + 0.05
 	id := amc.nextAsteroidID
 	amc.nextAsteroidID++
 	charCode := string(amc.generator.GetNext().Value)
@@ -235,7 +234,7 @@ func (amc *AsteroidsMinigameControls) spawnAsteroid() {
 	asteroid := &Asteroid{
 		AsteroidSpawnMessageDTO: AsteroidSpawnMessageDTO{
 			ID:              id,
-			X:               startX,
+			X:               1,
 			Y:               startY,
 			Health:          uint8(health),
 			TimeUntilImpact: uint32(timeTillImpactMS),
