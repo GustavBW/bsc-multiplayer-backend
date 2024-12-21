@@ -147,7 +147,7 @@ var ALL_EVENTS = NewSpecMap(DEBUG_EVENT, SERVER_CLOSING_EVENT)
 // Use only with instances of EventSpecification[T extends any]
 //
 // Introducing this type erasure with interface{} is unfortunately necessary
-// as Go does not support generic invariance. I.e. even if A extends B, T[A] is concidered assignable as T[B].
+// as Go does not support generic invariance. I.e. even if A extends B, T[A] is not concidered assignable as T[B].
 func NewSpecMap(events ...interface{}) map[MessageID]*EventSpecification[any] {
 	result := make(map[MessageID]*EventSpecification[any])
 	for _, event := range events {
