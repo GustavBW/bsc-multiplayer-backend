@@ -37,30 +37,28 @@ func SendDebugInfoToClient(client *Client, code uint32, message string) error {
 	return client.Conn.WriteMessage(util.Ternary(isBinary, websocket.BinaryMessage, websocket.TextMessage), withMessage)
 }
 
-var emptyByteArr = []byte{}
+var EMPTY_BYTE_ARR = []byte{}
 
 // Extracts the client id and message id from a message, also verifies the length of the message
-//
 // Expects the msg to be raw binary data.
-//
-// # Returns client id, message id, rest of the message
+// # Returns client id, spec, rest of the message
 func ExtractMessageHeader(msg []byte) (ClientID, *EventSpecification[any], []byte, error) {
 	if len(msg) < 8 {
-		return 0, nil, emptyByteArr, fmt.Errorf("message size too small. Must at least include userID (big endian uint32) and messageID (big endian uint32) in that order")
+		return 0, nil, EMPTY_BYTE_ARR, fmt.Errorf("message size too small. Must at least include userID (big endian uint32) and messageID (big endian uint32) in that order")
 	}
 	// Extract userID and messageID (uint32)
-	userID := binary.BigEndian.Uint32(msg[:4]) // 0, 1 2 3
+	userID := binary.BigEndian.Uint32(msg[:4])
 	messageID := binary.BigEndian.Uint32(msg[4:8])
 
 	var spec *EventSpecification[any]
 	var specExists bool
 	if spec, specExists = ALL_EVENTS[messageID]; !specExists {
-		return 0, nil, emptyByteArr, fmt.Errorf("message ID %d not found", messageID)
+		return 0, nil, EMPTY_BYTE_ARR, fmt.Errorf("message ID %d not found", messageID)
 	} else if uint32(len(msg)) < spec.ExpectedMinSize+MESSAGE_HEADER_SIZE {
-		return 0, nil, emptyByteArr, fmt.Errorf("message size too small. Expected at least %d bytes for message type %s, got %d", spec.ExpectedMinSize, spec.Name, len(msg))
+		return 0, nil, EMPTY_BYTE_ARR, fmt.Errorf("message size too small. Expected at least %d bytes for message type %s, got %d", spec.ExpectedMinSize, spec.Name, len(msg))
 	}
 
-	return ClientID(userID), spec, msg[8:], nil
+	return ClientID(userID), spec, msg[MESSAGE_HEADER_SIZE:], nil
 }
 
 // BroadcastMessage sends a message to all users in the lobby except the sender
